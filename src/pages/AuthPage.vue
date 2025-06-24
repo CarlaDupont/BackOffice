@@ -51,7 +51,8 @@
 </template>
 
 <script>
-import { markAsAuthenticated } from '../router' // 👈 Assure-toi que ce chemin est correct
+import { markAsAuthenticated } from '../router'
+import { supabase } from '../boot/supabase'
 
 export default {
   name: 'AuthPage',
@@ -77,27 +78,44 @@ export default {
       }
 
       try {
-        let response
+        let authResponse
 
         if (this.isLogin) {
-          console.log("Tentative de connexion", email)
-          response = await this.$supabase.auth.signInWithPassword({ email, password })
+          authResponse = await supabase.auth.signInWithPassword({ email, password })
         } else {
-          console.log("Tentative d'inscription", email)
-          response = await this.$supabase.auth.signUp({ email, password })
+          authResponse = await supabase.auth.signUp({ email, password })
         }
 
-        if (response.error) {
-          this.errorMessage = response.error.message
+        if (authResponse.error) {
+          this.errorMessage = authResponse.error.message
           return
         }
 
-        if (this.isLogin && response.data?.session) {
-          markAsAuthenticated() // ✅ permet au router d'autoriser l'accès
-          this.$router.push({ name: 'dashboard' })
-        } else if (!this.isLogin) {
+        const user = authResponse.data.user
+        const session = authResponse.data.session
+
+        if (!this.isLogin && user) {
+          // Inscription : créer dans la table public.user
+          const { error } = await supabase.from('user').insert({
+            id_auth: user.id,
+            email: user.email,
+            first_name: '',
+            last_name: ''
+          })
+
+          if (error) {
+            this.errorMessage = 'Erreur lors de la création de l’utilisateur.'
+            return
+          }
+
           this.errorMessage = 'Inscription réussie ! Vérifiez votre e-mail avant de vous connecter.'
           this.isLogin = true
+          return
+        }
+
+        if (this.isLogin && session) {
+          markAsAuthenticated()
+          this.$router.push({ name: 'dashboard' })
         }
       } catch (err) {
         this.errorMessage = 'Une erreur est survenue.'

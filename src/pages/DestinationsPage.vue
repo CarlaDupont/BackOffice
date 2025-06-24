@@ -89,7 +89,7 @@
 </template>
 
 <script>
-import { supabase } from 'boot/supabaseClient'
+import { supabase } from 'src/boot/supabase'
 import LeafletMap from 'components/LeafletMap.vue'
 import { Notify } from 'quasar' // <-- Add this import
 

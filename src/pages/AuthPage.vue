@@ -2,8 +2,11 @@
   <q-page padding class="flex flex-center">
     <q-card class="auth-card bg-white text-black">
       <q-card-section>
-        <div class="text-h5 q-mb-md">Connexion</div>
-        <q-form @submit.prevent="onSubmit" ref="loginForm">
+        <div class="text-h5 q-mb-md">
+          {{ isLogin ? 'Connexion' : 'Inscription' }}
+        </div>
+
+        <q-form @submit.prevent="onSubmit" ref="authForm">
           <q-input
             v-model="credentials.email"
             label="Email"
@@ -29,8 +32,17 @@
           </div>
 
           <q-card-actions align="right">
-            <q-btn label="Annuler" flat color="secondary" @click="resetForm" />
-            <q-btn label="Se connecter" color="primary" type="submit" />
+            <q-btn
+              flat
+              color="secondary"
+              @click="toggleMode"
+              :label="isLogin ? 'Créer un compte' : 'Déjà inscrit ? Se connecter'"
+            />
+            <q-btn
+              :label="isLogin ? 'Se connecter' : 'S’inscrire'"
+              color="primary"
+              type="submit"
+            />
           </q-card-actions>
         </q-form>
       </q-card-section>
@@ -39,13 +51,13 @@
 </template>
 
 <script>
-import { supabase } from 'boot/supabaseClient'           // votre boot file
-import { markAsAuthenticated } from 'src/router/index.js'  // ajustez si besoin le chemin
+import { markAsAuthenticated } from '../router' // 👈 Assure-toi que ce chemin est correct
 
 export default {
   name: 'AuthPage',
   data() {
     return {
+      isLogin: true,
       credentials: {
         email: '',
         password: ''
@@ -56,27 +68,53 @@ export default {
   methods: {
     async onSubmit() {
       this.errorMessage = ''
+      const email = this.credentials.email.trim().toLowerCase()
+      const password = this.credentials.password
 
-      const { error } = await supabase.auth.signInWithPassword({
-        email: this.credentials.email,
-        password: this.credentials.password
-      })
-
-      if (error) {
-        this.errorMessage = error.message
+      if (!email || !password) {
+        this.errorMessage = 'Veuillez remplir tous les champs.'
         return
       }
 
-      // login réussi
-      markAsAuthenticated()
-      this.$router.push({ name: 'dashboard' })
+      try {
+        let response
+
+        if (this.isLogin) {
+          console.log("Tentative de connexion", email)
+          response = await this.$supabase.auth.signInWithPassword({ email, password })
+        } else {
+          console.log("Tentative d'inscription", email)
+          response = await this.$supabase.auth.signUp({ email, password })
+        }
+
+        if (response.error) {
+          this.errorMessage = response.error.message
+          return
+        }
+
+        if (this.isLogin && response.data?.session) {
+          markAsAuthenticated() // ✅ permet au router d'autoriser l'accès
+          this.$router.push({ name: 'dashboard' })
+        } else if (!this.isLogin) {
+          this.errorMessage = 'Inscription réussie ! Vérifiez votre e-mail avant de vous connecter.'
+          this.isLogin = true
+        }
+      } catch (err) {
+        this.errorMessage = 'Une erreur est survenue.'
+        console.error(err)
+      }
+    },
+
+    toggleMode() {
+      this.isLogin = !this.isLogin
+      this.resetForm()
     },
 
     resetForm() {
       this.credentials.email = ''
       this.credentials.password = ''
       this.errorMessage = ''
-      this.$refs.loginForm.resetValidation()
+      this.$refs.authForm.resetValidation()
     }
   }
 }
@@ -91,10 +129,12 @@ export default {
 
 .bg-white { background-color: #fff; }
 .text-black { color: #000; }
+
 .text-h5 {
   font-family: 'Poppins', sans-serif;
   font-weight: 600;
 }
+
 .q-mb-md { margin-bottom: 16px; }
 .q-mb-sm { margin-bottom: 8px; }
 </style>

@@ -30,9 +30,9 @@ const routes = [
     name: 'statistiques'
   },
   {
-    path: '/Destinations',
+    path: '/destinations',
     component: DestinationsPage,
-    name: 'Destinations'
+    name: 'destinations'
   },
   {
     path: '/reservations',
@@ -44,7 +44,7 @@ const routes = [
     component: NotificationsPage,
     name: 'notifications'
   },
-    {
+  {
     path: '/account',
     component: AccountPage,
     name: 'account'

@@ -95,12 +95,13 @@ export default {
         const session = authResponse.data.session
 
         if (!this.isLogin && user) {
-          // Inscription : créer dans la table public.user
+          // 👤 Inscription : créer l'entrée dans la table "user"
           const { error } = await supabase.from('user').insert({
             id_auth: user.id,
             email: user.email,
             first_name: '',
-            last_name: ''
+            last_name: '',
+            role: 'User' // rôle par défaut si non spécifié
           })
 
           if (error) {
@@ -114,8 +115,30 @@ export default {
         }
 
         if (this.isLogin && session) {
-          markAsAuthenticated()
-          this.$router.push({ name: 'dashboard' })
+          // 🔄 Requête pour récupérer le rôle dans la table "user"
+          const { data: userData, error: userError } = await supabase
+            .from('user')
+            .select('role')
+            .eq('id_auth', user.id)
+            .single()
+
+          if (userError) {
+            this.errorMessage = "Impossible de récupérer le rôle de l'utilisateur."
+            return
+          }
+
+          const userRole = userData.role
+
+          // 💾 Stockage local du rôle (optionnel)
+          localStorage.setItem('userRole', userRole)
+
+          // 🔐 Redirection selon le rôle autorisé
+          if (['Owner', 'SAdmin', 'Admin'].includes(userRole)) {
+            markAsAuthenticated()
+            this.$router.push({ name: 'dashboard' })
+          } else {
+            this.errorMessage = "Accès refusé. Ce compte n'a pas les droits nécessaires."
+          }
         }
       } catch (err) {
         this.errorMessage = 'Une erreur est survenue.'
@@ -145,14 +168,24 @@ export default {
   margin-top: 100px;
 }
 
-.bg-white { background-color: #fff; }
-.text-black { color: #000; }
+.bg-white {
+  background-color: #fff;
+}
+
+.text-black {
+  color: #000;
+}
 
 .text-h5 {
   font-family: 'Poppins', sans-serif;
   font-weight: 600;
 }
 
-.q-mb-md { margin-bottom: 16px; }
-.q-mb-sm { margin-bottom: 8px; }
+.q-mb-md {
+  margin-bottom: 16px;
+}
+
+.q-mb-sm {
+  margin-bottom: 8px;
+}
 </style>

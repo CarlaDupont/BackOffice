@@ -39,7 +39,7 @@
 </template>
 
 <script>
-import { supabase } from 'boot/supabase'           // votre boot file
+import { supabase } from 'boot/supabaseClient'           // votre boot file
 import { markAsAuthenticated } from 'src/router/index.js'  // ajustez si besoin le chemin
 
 export default {

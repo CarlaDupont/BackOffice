@@ -2,15 +2,18 @@
   <q-page padding class="destinations-page">
     <div class="page-header"><h1>Destinations</h1></div>
 
-    <!-- Tableau des destinations -->
+    <div class="section-row justify-between">
+      <q-btn label="Ajouter une catégorie" color="secondary" @click="dialogAddCategory = true" />
+      <q-btn label="Ajouter une destination" color="primary" @click="openAddDestinationDialog" />
+    </div>
+
     <div class="cards-row">
       <div class="table-card">
         <q-table
           :rows="destinations"
           :columns="columns"
           :rows-per-page-options="[5, 10, 15]"
-          flat dense
-          row-key="id"
+          flat dense row-key="id"
         >
           <template v-slot:body-cell-image="props">
             <q-td>
@@ -32,16 +35,10 @@
       </div>
     </div>
 
-    <div class="section-row justify-end">
-      <q-btn label="Ajouter une destination" color="primary" @click="openAddDestinationDialog" />
-    </div>
-
-    <!-- Carte globale -->
     <div class="map-full-container">
       <LeafletMap :center="defaultCenter" :markers="allMarkers" />
     </div>
 
-    <!-- Dialog formulaire -->
     <q-dialog v-model="dialogOpen" persistent>
       <q-card style="min-width:400px; max-width:600px;">
         <q-card-section>
@@ -49,11 +46,29 @@
           <q-separator class="q-my-sm" />
 
           <q-input v-model="form.title" label="Titre" outlined dense class="q-mb-sm" />
-          <q-select v-model="form.type" :options="destinationTypes" label="Type" outlined dense class="q-mb-sm" />
+          <q-select
+            v-model="form.type"
+            :options="destinationTypes"
+            option-label="label"
+            option-value="value"
+            emit-value
+            map-options
+            label="Type"
+            outlined dense class="q-mb-sm"
+          />
+          <q-select
+            v-model="form.category_id"
+            :options="categories"
+            option-label="name"
+            option-value="id"
+            emit-value
+            map-options
+            label="Catégorie"
+            outlined dense class="q-mb-sm"
+          />
           <q-input v-model="form.startTime" label="Date de début" type="date" outlined dense class="q-mb-sm" />
           <q-input v-model="form.endTime" label="Date de fin" type="date" outlined dense class="q-mb-sm" />
           <q-input v-model="form.location" label="Lieu" outlined dense class="q-mb-sm" @blur="geocodeLocation" />
-
           <q-input v-model="form.notes" label="Notes" type="textarea" outlined dense class="q-mb-sm" />
 
           <div v-if="form.previewUrl" class="q-mb-sm">
@@ -79,6 +94,19 @@
         </q-card-actions>
       </q-card>
     </q-dialog>
+
+    <q-dialog v-model="dialogAddCategory" persistent>
+      <q-card style="min-width: 300px;">
+        <q-card-section>
+          <div class="text-h6">Nouvelle catégorie</div>
+          <q-input v-model="newCategoryName" label="Nom de la catégorie" outlined dense class="q-mt-md" />
+        </q-card-section>
+        <q-card-actions align="right">
+          <q-btn flat label="Annuler" color="negative" @click="dialogAddCategory = false" />
+          <q-btn flat label="Ajouter" color="primary" @click="addCategory" />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
   </q-page>
 </template>
 
@@ -92,7 +120,10 @@ export default {
   data() {
     return {
       destinations: [],
+      categories: [],
       dialogOpen: false,
+      dialogAddCategory: false,
+      newCategoryName: '',
       editMode: false,
       originalId: null,
       defaultCenter: [48.8566, 2.3522],
@@ -106,11 +137,13 @@ export default {
       ],
       form: {
         title: '', type: '', startTime: '', endTime: '',
-        location: '', notes: '', coords: [], file: null, previewUrl: ''
+        location: '', notes: '', coords: [], file: null, previewUrl: '',
+        category_id: null
       },
       columns: [
         { name: 'title', label: 'Titre', field: row => row.title },
-        { name: 'type', label: 'Type', field: row => row.type },
+        { name: 'type', label: 'Type', field: 'type' },
+        { name: 'category', label: 'Catégorie', field: row => row.category?.name || '—' },
         { name: 'startTime', label: 'Début', field: row => row.startTime },
         { name: 'endTime', label: 'Fin', field: row => row.endTime },
         { name: 'location', label: 'Lieu', field: row => row.location },
@@ -137,30 +170,39 @@ export default {
   },
   mounted() {
     this.fetchDestinations()
+    this.fetchCategories()
   },
   methods: {
     async fetchDestinations() {
-      const { data, error } = await supabase
-        .from('destinations')
-        .select('*')
-      if (error) return console.error('Erreur fetch:', error)
-
-      this.destinations = data.map(d => {
-        const { publicUrl } = supabase.storage.from('products').getPublicUrl(`${d.id}`)
-        return { ...d, image_url: publicUrl }
-      })
+      const { data, error } = await supabase.from('destinations').select('*, category:categories(id, name)')
+      if (error) return console.error('Erreur fetch destinations:', error)
+      this.destinations = data
     },
+    async fetchCategories() {
+      const { data, error } = await supabase.from('categories').select('*')
+      if (error) return console.error('Erreur fetch catégories:', error)
+      this.categories = data
+    },
+    async addCategory() {
+      if (!this.newCategoryName.trim()) return
 
+      const { error } = await supabase.from('categories').insert({ name: this.newCategoryName.trim() })
+      if (error) return console.error('Erreur ajout catégorie:', error)
+
+      this.newCategoryName = ''
+      this.dialogAddCategory = false
+      this.fetchCategories()
+    },
     openAddDestinationDialog() {
       this.editMode = false
       this.originalId = null
       this.form = {
         title: '', type: '', startTime: '', endTime: '',
-        location: '', notes: '', coords: [], file: null, previewUrl: ''
+        location: '', notes: '', coords: [], file: null, previewUrl: '',
+        category_id: null
       }
       this.dialogOpen = true
     },
-
     openEditDestinationDialog(dest) {
       this.editMode = true
       this.originalId = dest.id
@@ -173,23 +215,21 @@ export default {
         notes: dest.notes,
         coords: [dest.lat, dest.lng],
         file: null,
-        previewUrl: dest.image_url
+        previewUrl: dest.image_url,
+        category_id: dest.category_id || null
       }
       this.dialogOpen = true
     },
-
     async deleteDestination(dest) {
       const { error } = await supabase.from('destinations').delete().eq('id', dest.id)
       if (error) return console.error('Erreur suppression:', error)
       this.fetchDestinations()
     },
-
     updatePreview() {
       if (this.form.file) {
         this.form.previewUrl = URL.createObjectURL(this.form.file)
       }
     },
-
     async geocodeLocation() {
       if (!this.form.location) return
       try {
@@ -202,9 +242,7 @@ export default {
         alert("Erreur de géocodage")
       }
     },
-
     async saveDestination() {
-      // Géocodage si nécessaire
       if (!this.form.coords.length) await this.geocodeLocation()
       if (!this.form.coords.length) {
         alert("Lieu introuvable")
@@ -212,6 +250,22 @@ export default {
       }
 
       const [lat, lng] = this.form.coords
+      let image_url = null
+
+      if (this.form.file) {
+        const extension = this.form.file.name.split('.').pop()
+        const filePath = `${Date.now()}-${Math.random().toString(36).substr(2, 6)}.${extension}`
+
+        const { error: uploadError } = await supabase.storage.from('products').upload(filePath, this.form.file, { upsert: true })
+
+        if (uploadError) {
+          console.error("Échec de l’upload de l’image", uploadError)
+        } else {
+          const { publicUrl } = supabase.storage.from('products').getPublicUrl(filePath)
+          image_url = publicUrl
+        }
+      }
+
       const payload = {
         title: this.form.title,
         type: this.form.type,
@@ -219,7 +273,9 @@ export default {
         endTime: this.form.endTime || null,
         location: this.form.location,
         notes: this.form.notes,
-        lat, lng
+        lat, lng,
+        category_id: this.form.category_id,
+        ...(image_url ? { image_url } : {})
       }
 
       let recordId = this.originalId
@@ -232,19 +288,6 @@ export default {
         recordId = data.id
       }
 
-      // Upload image si présente
-      if (this.form.file) {
-        const { error: uploadError } = await supabase
-          .storage
-          .from('products')
-          .upload(`${recordId}`, this.form.file, { upsert: true })
-        if (uploadError) console.error("Échec de l’upload de l’image")
-
-        // Attendre 300ms pour que Supabase rende l'image accessible
-        await new Promise(resolve => setTimeout(resolve, 300))
-      }
-
-      // Rafraîchir la liste et fermer
       await this.fetchDestinations()
       this.dialogOpen = false
     }
@@ -257,7 +300,7 @@ export default {
 .page-header h1 { margin:0 0 24px; font-size:24px; color:#333; }
 .cards-row { display:flex; gap:16px; margin-bottom:24px; }
 .table-card { flex:1; background:#fff; border-radius:8px; overflow:hidden; box-shadow:0 2px 6px rgba(0,0,0,0.05); }
-.section-row { display:flex; justify-content:flex-end; margin-bottom:24px; }
+.section-row { display:flex; justify-content:space-between; margin-bottom:24px; }
 .map-full-container { width:100%; margin-bottom:24px; height:400px; }
 .form-map-container { margin-top:16px; height:300px; }
 .preview-img { width:100%; max-height:200px; border-radius:4px; object-fit:cover; }

@@ -354,11 +354,15 @@ export default {
       }
 
       const [lat, lng] = this.form.coords
-      let image_url = null
+      let imagePath = null
 
       if (this.form.file) {
         const extension = this.form.file.name.split('.').pop()
-        const filePath = `${Date.now()}-${Math.random().toString(36).substr(2, 6)}.${extension}`
+        const uuid =
+          window.crypto && window.crypto.randomUUID
+            ? window.crypto.randomUUID()
+            : `${Date.now()}-${Math.random().toString(36).substr(2, 6)}`
+        const filePath = `${uuid}.${extension}`
 
         const { error: uploadError } = await supabase.storage
           .from('products')
@@ -367,8 +371,8 @@ export default {
         if (uploadError) {
           console.error('Échec de l’upload de l’image', uploadError)
         } else {
-          const { publicUrl } = supabase.storage.from('products').getPublicUrl(filePath)
-          image_url = publicUrl
+          imagePath = filePath
+          await new Promise((resolve) => setTimeout(resolve, 300))
         }
       }
 
@@ -381,6 +385,12 @@ export default {
         notes: this.form.notes,
         lat,
         lng,
+        category_id: this.form.category_id,
+        image_path:
+          imagePath ||
+          (this.editMode
+            ? this.destinations.find((d) => d.id === this.originalId)?.image_path
+            : null),
       }
 
       let recordId = this.originalId
@@ -395,17 +405,6 @@ export default {
           .single()
         if (error) return console.error('Erreur insert:', error)
         recordId = data.id
-      }
-
-      // Upload image si présente
-      if (this.form.file) {
-        const { error: uploadError } = await supabase.storage
-          .from('products')
-          .upload(`${recordId}`, this.form.file, { upsert: true })
-        if (uploadError) console.error('Échec de l’upload de l’image')
-
-        // Attendre 300ms pour que Supabase rende l'image accessible
-        await new Promise((resolve) => setTimeout(resolve, 300))
       }
 
       // Rafraîchir la liste et fermer

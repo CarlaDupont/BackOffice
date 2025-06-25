@@ -2,11 +2,8 @@
   <q-page padding class="column items-center">
     <q-card class="bg-white text-black" style="max-width: 400px; width: 100%;">
       <q-card-section class="row items-center q-pa-md">
-        <q-avatar size="80px" class="q-mr-md">
-          <img src="https://via.placeholder.com/80" alt="Avatar utilisateur" />
-        </q-avatar>
         <div>
-          <div class="text-h6">{{ user.firstName }} {{ user.lastName }}</div>
+          <div class="text-h6">{{ user.first_name }} {{ user.last_name }}</div>
           <div class="text-caption">{{ user.username }}</div>
           <div class="text-caption">{{ user.email }}</div>
           <div class="text-caption text-bold">Rôle : {{ user.role }}</div>
@@ -64,10 +61,10 @@ export default {
   data() {
     return {
       user: {
-        username: 'janedoe',
-        firstName: 'Jane',
-        lastName: 'Doe',
-        email: 'jane.doe@example.com',
+        username: '',
+        first_name: '',
+        last_name: '',
+        email: '',
         role: localStorage.getItem('userRole') || 'User'
       },
       showCreateDialog: false,
@@ -78,6 +75,21 @@ export default {
       },
       errorMessage: '',
       successMessage: ''
+    }
+  },
+  async mounted() {
+    const currentUser = await supabase.auth.getUser()
+    const id = currentUser?.data?.user?.id
+    if (!id) return
+
+    const { data, error } = await supabase
+      .from('user')
+      .select('*')
+      .eq('id_auth', id)
+      .single()
+
+    if (!error && data) {
+      this.user = { ...data }
     }
   },
   computed: {

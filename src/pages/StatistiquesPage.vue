@@ -4,6 +4,7 @@
       <h1>Statistiques</h1>
     </div>
 
+    <!-- Cartes -->
     <div class="cards-row">
       <div class="stat-card">
         <div class="stat-title">Total des roadtrips</div>
@@ -14,29 +15,44 @@
         <div class="stat-value">{{ averageDuration }}</div>
       </div>
       <div class="stat-card">
-        <div class="stat-title">Roadtrips par type</div>
-        <div class="stat-row">
-          <div><strong>Plage</strong><br>{{ beachCount }}</div>
-          <div><strong>Hiver</strong><br>{{ winterCount }}</div>
-          <div><strong>Ville</strong><br>{{ cityCount }}</div>
-        </div>
-      </div>
-      <div class="stat-card">
         <div class="stat-title">Roadtrips ce mois-ci</div>
         <div class="stat-value">{{ tripsThisMonth }}</div>
       </div>
+      <div class="stat-card">
+        <div class="stat-title">Total des réservations</div>
+        <div class="stat-value">{{ totalReservations }}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-title">Réservations ce mois-ci</div>
+        <div class="stat-value">{{ reservationsThisMonth }}</div>
+      </div>
     </div>
 
+    <!-- Graphiques -->
     <div class="charts-row">
       <q-card class="chart-card">
         <q-card-section>
-          <div class="chart-title">Répartition des roadtrips</div>
-          <q-chart
-            :options="tripChartOptions"
-            :series="tripChartSeries"
-            type="pie"
-            height="250"
-          />
+          <div class="chart-title">Types de roadtrips (par catégorie)</div>
+          <apexchart
+  height="220"
+  type="pie"
+  :options="tripChart.options"
+  :series="tripChart.series"
+/>
+
+        </q-card-section>
+      </q-card>
+
+      <q-card class="chart-card">
+        <q-card-section>
+          <div class="chart-title">Statuts des réservations</div>
+          <apexchart
+  height="220"
+  type="donut"
+  :options="reservationChart.options"
+  :series="reservationChart.series"
+/>
+
         </q-card-section>
       </q-card>
     </div>
@@ -44,26 +60,125 @@
 </template>
 
 <script>
+import { supabase } from 'src/boot/supabase'
+import ApexChart from 'vue3-apexcharts'
+
 export default {
   name: 'StatistiquesPage',
-  data() {
+  components: {
+    apexchart: ApexChart
+  },
+  data () {
     return {
-      totalTrips: 200,
-      averageDuration: 7,
-      beachCount: 80,
-      winterCount: 60,
-      cityCount: 60,
-      tripsThisMonth: 45,
-      tripChartOptions: {
-        labels: ['Plage', 'Hiver', 'Ville'],
-        colors: ['#FFB74D', '#4FC3F7', '#AED581'],
-        legend: { position: 'bottom' },
-        chart: { toolbar: { show: false } }
+      totalTrips: 0,
+      averageDuration: 0,
+      tripsThisMonth: 0,
+      totalReservations: 0,
+      reservationsThisMonth: 0,
+
+      tripChart: {
+        series: [],
+        options: {
+          labels: [],
+          chart: { toolbar: { show: false } },
+          legend: { position: 'bottom' }
+        }
       },
-      tripChartSeries: [40, 30, 30]
-    };
+      reservationChart: {
+        series: [],
+        options: {
+          labels: [],
+          chart: { toolbar: { show: false } },
+          legend: { position: 'bottom' }
+        }
+      }
+    }
+  },
+
+  mounted () {
+    this.loadStats()
+  },
+
+  methods: {
+    async loadStats () {
+      try {
+        const now = new Date()
+        const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
+
+        // 📦 Catégories
+        const { data: categories, error: catErr } = await supabase
+          .from('categories')
+          .select('id, name')
+        if (catErr) throw catErr
+        const categoryMap = Object.fromEntries(categories.map(c => [c.id, c.name]))
+
+        // 📦 Destinations
+        const { data: destinations, error: destErr } = await supabase
+          .from('destinations')
+          .select('id, startTime, endTime, created_at, category_id')
+        if (destErr) throw destErr
+
+        this.totalTrips = destinations.length
+        const durations = destinations
+          .filter(d => d.startTime && d.endTime)
+          .map(d => (new Date(d.endTime) - new Date(d.startTime)) / 86400000)
+        this.averageDuration = durations.length
+          ? Math.round(durations.reduce((a, b) => a + b) / durations.length)
+          : 0
+        this.tripsThisMonth = destinations.filter(d => d.created_at >= firstOfMonth).length
+
+        const catCounts = {}
+        destinations.forEach(d => {
+          const name = categoryMap[d.category_id] || 'Non catégorisé'
+          catCounts[name] = (catCounts[name] || 0) + 1
+        })
+
+        // ✅ Forcer mise à jour complète de l'objet (pour ApexCharts)
+        this.tripChart = {
+          series: Object.values(catCounts),
+          options: {
+            ...this.tripChart.options,
+            labels: Object.keys(catCounts),
+            chart: { toolbar: { show: false } },
+            legend: { position: 'bottom' }
+          }
+        }
+
+        // 📦 Réservations
+        const { data: reservations, error: resErr } = await supabase
+          .from('reservations')
+          .select('id, status, created_at')
+        if (resErr) throw resErr
+
+        this.totalReservations = reservations.length
+        this.reservationsThisMonth = reservations.filter(r => r.created_at >= firstOfMonth).length
+
+        const statCounts = {}
+        reservations.forEach(r => {
+          const s = (r.status || 'Inconnu').toLowerCase()
+          statCounts[s] = (statCounts[s] || 0) + 1
+        })
+
+        this.reservationChart = {
+          series: Object.values(statCounts),
+          options: {
+            ...this.reservationChart.options,
+            labels: Object.keys(statCounts),
+            chart: { toolbar: { show: false } },
+            legend: { position: 'bottom' }
+          }
+        }
+
+        // Debug
+        console.log('Catégories :', this.tripChart.options.labels)
+        console.log('Statuts    :', this.reservationChart.options.labels)
+
+      } catch (e) {
+        console.error('Erreur chargement statistiques :', e)
+      }
+    }
   }
-};
+}
 </script>
 
 <style scoped>
@@ -71,24 +186,23 @@ export default {
   background: #f9fafa;
   min-height: 100%;
 }
-
 .page-header h1 {
-  margin: 0 0 24px;
+  margin-bottom: 24px;
   font-size: 24px;
   color: #333;
 }
-
 .cards-row {
   display: flex;
+  flex-wrap: wrap;
   gap: 16px;
   margin-bottom: 24px;
 }
 .stat-card {
-  flex: 1;
-  background: #ffffff;
+  flex: 1 1 220px;
+  background: #fff;
   border-radius: 8px;
   padding: 16px;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+  box-shadow: 0 2px 6px #0001;
 }
 .stat-title {
   font-size: 14px;
@@ -99,26 +213,22 @@ export default {
   font-size: 28px;
   color: #222;
 }
-.stat-row {
-  display: flex;
-  justify-content: space-between;
-  font-size: 14px;
-  color: #555;
-}
-
 .charts-row {
   display: flex;
+  flex-wrap: wrap;
   gap: 16px;
 }
 .chart-card {
-  flex: 1;
-  background: #ffffff;
+  flex: 1 1 300px;
+  padding: 8px;
+  background: #fff;
   border-radius: 8px;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+  box-shadow: 0 1px 3px #00000010;
 }
 .chart-title {
-  font-size: 16px;
+  font-size: 14px;
   color: #333;
-  margin-bottom: 12px;
+  margin-bottom: 4px;
 }
+
 </style>

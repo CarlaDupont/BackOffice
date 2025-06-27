@@ -5,7 +5,8 @@ export default defineConfig(() => {
   return {
     boot: [
       'leaflet',
-      'supabase'
+      'supabase',
+      'apexcharts'
     ],
 
     css: ['app.scss'],

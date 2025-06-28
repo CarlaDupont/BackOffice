@@ -1,6 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import DashboardPage from '../pages/DashboardPage.vue';
-import StatistiquesPage from '../pages/StatistiquesPage.vue';
+import FavoritesPage from '../pages/FavoritesPage.vue';
 import DestinationsPage from '../pages/DestinationsPage.vue';
 import NotificationsPage from '../pages/NotificationsPage.vue';
 import AuthPage from '../pages/AuthPage.vue';
@@ -25,9 +25,9 @@ const routes = [
     name: 'dashboard'
   },
   {
-    path: '/statistiques',
-    component: StatistiquesPage,
-    name: 'statistiques'
+    path: '/favorites',
+    component: FavoritesPage,
+    name: 'favorites'
   },
   {
     path: '/destinations',

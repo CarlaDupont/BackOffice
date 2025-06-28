@@ -16,7 +16,7 @@
       <q-item to="/" exact active-class="active-link">
         <q-item-section>Dashboard</q-item-section>
       </q-item>
-      <q-item to="/statistiques" active-class="active-link">
+      <q-item to="/favorites" active-class="active-link">
         <q-item-section>Statistiques</q-item-section>
       </q-item>
       <q-item to="/destinations" active-class="active-link">

@@ -2,9 +2,7 @@
   <q-page padding class="flex flex-center">
     <q-card class="auth-card bg-white text-black">
       <q-card-section>
-        <div class="text-h5 q-mb-md">
-          {{ isLogin ? 'Connexion' : 'Inscription' }}
-        </div>
+        <div class="text-h5 q-mb-md">Connexion</div>
 
         <q-form @submit.prevent="onSubmit" ref="authForm">
           <q-input
@@ -33,13 +31,7 @@
 
           <q-card-actions align="right">
             <q-btn
-              flat
-              color="secondary"
-              @click="toggleMode"
-              :label="isLogin ? 'Créer un compte' : 'Déjà inscrit ? Se connecter'"
-            />
-            <q-btn
-              :label="isLogin ? 'Se connecter' : 'S’inscrire'"
+              label="Se connecter"
               color="primary"
               type="submit"
             />
@@ -58,7 +50,6 @@ export default {
   name: 'AuthPage',
   data() {
     return {
-      isLogin: true,
       credentials: {
         email: '',
         password: ''
@@ -78,44 +69,17 @@ export default {
       }
 
       try {
-        let authResponse
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password })
 
-        if (this.isLogin) {
-          authResponse = await supabase.auth.signInWithPassword({ email, password })
-        } else {
-          authResponse = await supabase.auth.signUp({ email, password })
-        }
-
-        if (authResponse.error) {
-          this.errorMessage = authResponse.error.message
+        if (error) {
+          this.errorMessage = error.message
           return
         }
 
-        const user = authResponse.data.user
-        const session = authResponse.data.session
+        const user = data.user
+        const session = data.session
 
-        if (!this.isLogin && user) {
-          // 👤 Inscription : créer l'entrée dans la table "user"
-          const { error } = await supabase.from('user').insert({
-            id_auth: user.id,
-            email: user.email,
-            first_name: '',
-            last_name: '',
-            role: 'User' // rôle par défaut si non spécifié
-          })
-
-          if (error) {
-            this.errorMessage = 'Erreur lors de la création de l’utilisateur.'
-            return
-          }
-
-          this.errorMessage = 'Inscription réussie ! Vérifiez votre e-mail avant de vous connecter.'
-          this.isLogin = true
-          return
-        }
-
-        if (this.isLogin && session) {
-          // 🔄 Requête pour récupérer le rôle dans la table "user"
+        if (user && session) {
           const { data: userData, error: userError } = await supabase
             .from('user')
             .select('role')
@@ -128,11 +92,8 @@ export default {
           }
 
           const userRole = userData.role
-
-          // 💾 Stockage local du rôle (optionnel)
           localStorage.setItem('userRole', userRole)
 
-          // 🔐 Redirection selon le rôle autorisé
           if (['Owner', 'SAdmin', 'Admin'].includes(userRole)) {
             markAsAuthenticated()
             this.$router.push({ name: 'dashboard' })
@@ -144,18 +105,6 @@ export default {
         this.errorMessage = 'Une erreur est survenue.'
         console.error(err)
       }
-    },
-
-    toggleMode() {
-      this.isLogin = !this.isLogin
-      this.resetForm()
-    },
-
-    resetForm() {
-      this.credentials.email = ''
-      this.credentials.password = ''
-      this.errorMessage = ''
-      this.$refs.authForm.resetValidation()
     }
   }
 }

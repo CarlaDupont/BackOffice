@@ -109,6 +109,14 @@
             @blur="geocodeLocation"
           />
           <q-input
+            v-model.number="form.price"
+            label="Prix (€)"
+            type="number"
+            outlined
+            dense
+            class="q-mb-sm"
+          />
+          <q-input
             v-model="form.notes"
             label="Notes"
             type="textarea"
@@ -144,25 +152,6 @@
             color="primary"
             @click="saveDestination"
           />
-        </q-card-actions>
-      </q-card>
-    </q-dialog>
-
-    <q-dialog v-model="dialogAddCategory" persistent>
-      <q-card style="min-width: 300px">
-        <q-card-section>
-          <div class="text-h6">Nouvelle catégorie</div>
-          <q-input
-            v-model="newCategoryName"
-            label="Nom de la catégorie"
-            outlined
-            dense
-            class="q-mt-md"
-          />
-        </q-card-section>
-        <q-card-actions align="right">
-          <q-btn flat label="Annuler" color="negative" @click="dialogAddCategory = false" />
-          <q-btn flat label="Ajouter" color="primary" @click="addCategory" />
         </q-card-actions>
       </q-card>
     </q-dialog>
@@ -232,6 +221,7 @@ export default {
         { name: 'startTime', label: 'Début', field: (row) => row.startTime },
         { name: 'endTime', label: 'Fin', field: (row) => row.endTime },
         { name: 'location', label: 'Lieu', field: (row) => row.location },
+        { name: 'price', label: 'Prix (€)', field: (row) => row.price != null ? `${row.price} €` : '—' },
         { name: 'notes', label: 'Notes', field: (row) => row.notes },
         { name: 'image', label: 'Image' },
         { name: 'actions', label: 'Actions' },
@@ -383,6 +373,8 @@ export default {
         endTime: this.form.endTime || null,
         location: this.form.location,
         notes: this.form.notes,
+        price: this.form.price !== '' && this.form.price != null ? parseFloat(this.form.price) : null,
+
         lat,
         lng,
         category_id: this.form.category_id,

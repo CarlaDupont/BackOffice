@@ -17,14 +17,17 @@
           dense
           row-key="id"
         >
-          <template v-slot:body-cell-image="props">
+          <template v-slot:body-cell-images="props">
             <q-td>
-              <img
-                v-if="getImageUrl(props.row.image_path)"
-                :src="getImageUrl(props.row.image_path)"
-                alt="aperçu"
-                style="height: 60px; border-radius: 4px; object-fit: cover"
-              />
+              <div class="images-container">
+                <img
+                  v-for="(imagePath, index) in getImageArray(props.row.image_path)"
+                  :key="index"
+                  :src="getImageUrl(imagePath)"
+                  alt="aperçu"
+                  class="destination-image"
+                />
+              </div>
             </q-td>
           </template>
           <template v-slot:body-cell-actions="props">
@@ -117,19 +120,70 @@
             class="q-mb-sm"
           />
 
-          <div v-if="form.previewUrl" class="q-mb-sm">
-            <div class="text-caption q-mb-xs">Aperçu de l'image</div>
-            <img :src="form.previewUrl" alt="Aperçu image" class="preview-img" />
+          <!-- Aperçu des images existantes -->
+          <div v-if="form.existingImages && form.existingImages.length > 0" class="q-mb-sm">
+            <div class="text-caption q-mb-xs">Images existantes</div>
+            <div class="existing-images-container">
+              <div
+                v-for="(imagePath, index) in form.existingImages"
+                :key="index"
+                class="image-item"
+              >
+                <img :src="getImageUrl(imagePath)" alt="Image existante" class="preview-img" />
+                <q-btn
+                  flat
+                  round
+                  dense
+                  icon="close"
+                  color="negative"
+                  size="sm"
+                  class="remove-image-btn"
+                  @click="removeExistingImage(index)"
+                />
+              </div>
+            </div>
           </div>
-          <q-file
-            v-model="form.file"
-            label="Image du lieu"
-            outlined
-            dense
-            class="q-mb-sm"
-            accept="image/*"
-            @change="updatePreview"
-          />
+
+          <!-- Aperçu des nouvelles images -->
+          <div v-if="form.previewUrls && form.previewUrls.length > 0" class="q-mb-sm">
+            <div class="text-caption q-mb-xs">Nouvelles images</div>
+            <div class="new-images-container">
+              <div v-for="(previewUrl, index) in form.previewUrls" :key="index" class="image-item">
+                <img :src="previewUrl" alt="Aperçu nouvelle image" class="preview-img" />
+                <q-btn
+                  flat
+                  round
+                  dense
+                  icon="close"
+                  color="negative"
+                  size="sm"
+                  class="remove-image-btn"
+                  @click="removeNewImage(index)"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div class="image-upload-section q-mb-sm">
+            <q-file
+              v-model="form.files"
+              label="Sélectionner des images"
+              outlined
+              dense
+              class="q-mb-sm"
+              accept="image/*"
+              multiple
+              @change="updatePreviews"
+            />
+            <q-btn
+              v-if="form.files && form.files.length > 0"
+              label="Ajouter les images"
+              color="primary"
+              icon="add"
+              @click="addImagesImmediately"
+              :loading="uploadingImages"
+            />
+          </div>
 
           <q-separator class="q-my-sm" />
           <div class="form-map-container q-mb-sm">
@@ -144,25 +198,6 @@
             color="primary"
             @click="saveDestination"
           />
-        </q-card-actions>
-      </q-card>
-    </q-dialog>
-
-    <q-dialog v-model="dialogAddCategory" persistent>
-      <q-card style="min-width: 300px">
-        <q-card-section>
-          <div class="text-h6">Nouvelle catégorie</div>
-          <q-input
-            v-model="newCategoryName"
-            label="Nom de la catégorie"
-            outlined
-            dense
-            class="q-mt-md"
-          />
-        </q-card-section>
-        <q-card-actions align="right">
-          <q-btn flat label="Annuler" color="negative" @click="dialogAddCategory = false" />
-          <q-btn flat label="Ajouter" color="primary" @click="addCategory" />
         </q-card-actions>
       </q-card>
     </q-dialog>
@@ -204,6 +239,7 @@ export default {
       newCategoryName: '',
       editMode: false,
       originalId: null,
+      uploadingImages: false,
       defaultCenter: [48.8566, 2.3522],
       destinationTypes: [
         { label: 'Musée', value: 'musée' },
@@ -221,8 +257,9 @@ export default {
         location: '',
         notes: '',
         coords: [],
-        file: null,
-        previewUrl: '',
+        files: [],
+        previewUrls: [],
+        existingImages: [],
         category_id: null,
       },
       columns: [
@@ -233,7 +270,7 @@ export default {
         { name: 'endTime', label: 'Fin', field: (row) => row.endTime },
         { name: 'location', label: 'Lieu', field: (row) => row.location },
         { name: 'notes', label: 'Notes', field: (row) => row.notes },
-        { name: 'image', label: 'Image' },
+        { name: 'images', label: 'Images' },
         { name: 'actions', label: 'Actions' },
       ],
     }
@@ -291,8 +328,9 @@ export default {
         location: '',
         notes: '',
         coords: [],
-        file: null,
-        previewUrl: '',
+        files: [],
+        previewUrls: [],
+        existingImages: [],
         category_id: null,
       }
       this.dialogOpen = true
@@ -308,8 +346,9 @@ export default {
         location: dest.location,
         notes: dest.notes,
         coords: [dest.lat, dest.lng],
-        file: null,
-        previewUrl: this.getImageUrl(dest.image_path),
+        files: [],
+        previewUrls: [],
+        existingImages: this.getImageArray(dest.image_path),
         category_id: dest.category_id || null,
       }
       this.dialogOpen = true
@@ -319,17 +358,88 @@ export default {
       if (error) return console.error('Erreur suppression:', error)
       this.fetchDestinations()
     },
-    updatePreview() {
-      if (this.form.file) {
-        const file = Array.isArray(this.form.file) ? this.form.file[0] : this.form.file
-        this.form.previewUrl = URL.createObjectURL(file)
-      } else if (this.editMode && this.originalId) {
-        this.form.previewUrl = this.getImageUrl(
-          this.originalId,
-          this.destinations.find((d) => d.id === this.originalId).image_path,
-        )
-      } else {
-        this.form.previewUrl = ''
+    getImageArray(imagePath) {
+      if (!imagePath) return []
+      if (Array.isArray(imagePath)) return imagePath
+      if (typeof imagePath === 'string') return [imagePath]
+      return []
+    },
+    updatePreviews() {
+      // Nettoyer les anciennes previews
+      this.form.previewUrls.forEach((url) => URL.revokeObjectURL(url))
+      this.form.previewUrls = []
+
+      if (this.form.files && this.form.files.length > 0) {
+        this.form.files.forEach((file) => {
+          if (file) {
+            this.form.previewUrls.push(URL.createObjectURL(file))
+          }
+        })
+      }
+    },
+    removeExistingImage(index) {
+      this.form.existingImages.splice(index, 1)
+    },
+    removeNewImage(index) {
+      // Révocquer l'URL de l'objet
+      URL.revokeObjectURL(this.form.previewUrls[index])
+      this.form.previewUrls.splice(index, 1)
+      this.form.files.splice(index, 1)
+    },
+    async addImagesImmediately() {
+      if (!this.form.files || this.form.files.length === 0) return
+
+      this.uploadingImages = true
+      let uploadedPaths = []
+
+      try {
+        for (const file of this.form.files) {
+          if (file) {
+            const extension = file.name.split('.').pop()
+            const uuid =
+              window.crypto && window.crypto.randomUUID
+                ? window.crypto.randomUUID()
+                : `${Date.now()}-${Math.random().toString(36).substr(2, 6)}`
+            const filePath = `${uuid}.${extension}`
+
+            const { error: uploadError } = await supabase.storage
+              .from('products')
+              .upload(filePath, file, { upsert: true })
+
+            if (uploadError) {
+              console.error("Échec de l'upload de l'image", uploadError)
+            } else {
+              uploadedPaths.push(filePath)
+              await new Promise((resolve) => setTimeout(resolve, 300))
+            }
+          }
+        }
+
+        // Ajouter les nouvelles images à la liste des images existantes
+        this.form.existingImages.push(...uploadedPaths)
+
+        // Nettoyer les fichiers et previews
+        this.form.files = []
+        this.form.previewUrls.forEach((url) => URL.revokeObjectURL(url))
+        this.form.previewUrls = []
+
+        // Si on est en mode édition, mettre à jour la destination en base
+        if (this.editMode && this.originalId) {
+          const payload = {
+            image_path: this.form.existingImages,
+          }
+          const { error } = await supabase
+            .from('destinations')
+            .update(payload)
+            .eq('id', this.originalId)
+          if (error) {
+            console.error('Erreur mise à jour images:', error)
+          }
+        }
+      } catch (error) {
+        console.error("Erreur lors de l'ajout des images:", error)
+      } finally {
+        this.uploadingImages = false
       }
     },
     async geocodeLocation() {
@@ -354,27 +464,6 @@ export default {
       }
 
       const [lat, lng] = this.form.coords
-      let imagePath = null
-
-      if (this.form.file) {
-        const extension = this.form.file.name.split('.').pop()
-        const uuid =
-          window.crypto && window.crypto.randomUUID
-            ? window.crypto.randomUUID()
-            : `${Date.now()}-${Math.random().toString(36).substr(2, 6)}`
-        const filePath = `${uuid}.${extension}`
-
-        const { error: uploadError } = await supabase.storage
-          .from('products')
-          .upload(filePath, this.form.file, { upsert: true })
-
-        if (uploadError) {
-          console.error('Échec de l’upload de l’image', uploadError)
-        } else {
-          imagePath = filePath
-          await new Promise((resolve) => setTimeout(resolve, 300))
-        }
-      }
 
       const payload = {
         title: this.form.title,
@@ -386,11 +475,7 @@ export default {
         lat,
         lng,
         category_id: this.form.category_id,
-        image_path:
-          imagePath ||
-          (this.editMode
-            ? this.destinations.find((d) => d.id === this.originalId)?.image_path
-            : null),
+        image_path: this.form.existingImages.length > 0 ? this.form.existingImages : null,
       }
 
       let recordId = this.originalId
@@ -406,6 +491,9 @@ export default {
         if (error) return console.error('Erreur insert:', error)
         recordId = data.id
       }
+
+      // Nettoyer les URLs d'aperçu
+      this.form.previewUrls.forEach((url) => URL.revokeObjectURL(url))
 
       // Rafraîchir la liste et fermer
       await this.fetchDestinations()
@@ -460,11 +548,47 @@ export default {
   margin-top: 16px;
   height: 300px;
 }
-.preview-img {
-  width: 100%;
-  max-height: 200px;
+.images-container {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.destination-image {
+  height: 60px;
+  width: 60px;
   border-radius: 4px;
   object-fit: cover;
+}
+.existing-images-container,
+.new-images-container {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.image-item {
+  position: relative;
+  display: inline-block;
+}
+.preview-img {
+  width: 80px;
+  height: 80px;
+  border-radius: 4px;
+  object-fit: cover;
+}
+.remove-image-btn {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  background: white;
+  border-radius: 50%;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+.image-upload-section {
+  border: 1px dashed #ccc;
+  border-radius: 8px;
+  padding: 16px;
+  background: #f9f9f9;
 }
 ::v-deep .form-map-container .leaflet-container,
 ::v-deep .map-full-container .leaflet-container {

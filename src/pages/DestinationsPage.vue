@@ -52,7 +52,7 @@
 
     <!-- Dialog ajout / édition destination -->
     <q-dialog v-model="dialogOpen" persistent>
-      <q-card style="min-width: 400px; max-width: 600px">
+      <q-card style="min-width: 400px; max-width: 600px" >
         <q-card-section>
           <div class="text-h6">{{ editMode ? 'Modifier' : 'Ajouter' }} une destination</div>
           <q-separator class="q-my-sm" />
@@ -151,38 +151,40 @@
 
     <!-- Dialog CRUD catégories -->
     <q-dialog v-model="dialogManageCategories" persistent>
-  <q-card style="min-width: 400px; max-width: 600px; max-height: 80vh;">
+  <q-card
+    style="
+      width: 600px;
+      height: 80vh;
+      display: flex;
+      flex-direction: column;
+    "
+  >
+    <!-- En-tête -->
     <q-card-section class="text-h6">
       Gestion des catégories
     </q-card-section>
     <q-separator />
 
-    <!-- Scrollable table body -->
-    <q-card-section style="padding: 0; max-height: 300px; overflow-y: auto;">
+    <!-- Tableau scrollable -->
+    <q-card-section
+      style="
+        flex: 1;
+        padding: 0;
+        overflow-y: auto;
+      "
+    >
       <q-table
         :rows="categories"
         :columns="categoryColumns"
         row-key="id"
-        flat
-        dense
-        hide-bottom
+        flat dense hide-bottom
       >
         <template v-slot:body-cell-actions="props">
           <q-td>
-            <q-btn
-              flat
-              dense
-              icon="edit"
-              color="primary"
-              @click="editCategory(props.row)"
-            />
-            <q-btn
-              flat
-              dense
-              icon="delete"
-              color="negative"
-              @click="deleteCategory(props.row.id)"
-            />
+            <q-btn flat dense icon="edit" color="primary"
+              @click="editCategory(props.row)" />
+            <q-btn flat dense icon="delete" color="negative"
+              @click="deleteCategory(props.row.id)" />
           </q-td>
         </template>
       </q-table>
@@ -190,22 +192,25 @@
 
     <q-separator />
 
+    <!-- Formulaire -->
     <q-card-section>
       <q-input
         v-model="categoryForm.name"
-        label="Ajouter une catégorie"
-        outlined
-        dense
+        label="Ajouter / Modifier une catégorie"
+        outlined dense
         :rules="[v => !!v || 'Le nom est requis']"
       />
     </q-card-section>
 
+    <!-- Actions -->
     <q-card-actions align="right">
       <q-btn flat label="Annuler" @click="closeCategoryDialog" />
       <q-btn flat label="Enregistrer" color="primary" @click="saveCategory" />
     </q-card-actions>
   </q-card>
 </q-dialog>
+
+
 
 
   </q-page>

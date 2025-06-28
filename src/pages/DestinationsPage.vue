@@ -112,6 +112,14 @@
             @blur="geocodeLocation"
           />
           <q-input
+            v-model.number="form.price"
+            label="Prix (€)"
+            type="number"
+            outlined
+            dense
+            class="q-mb-sm"
+          />
+          <q-input
             v-model="form.notes"
             label="Notes"
             type="textarea"
@@ -269,6 +277,7 @@ export default {
         { name: 'startTime', label: 'Début', field: (row) => row.startTime },
         { name: 'endTime', label: 'Fin', field: (row) => row.endTime },
         { name: 'location', label: 'Lieu', field: (row) => row.location },
+        { name: 'price', label: 'Prix (€)', field: (row) => row.price != null ? `${row.price} €` : '—' },
         { name: 'notes', label: 'Notes', field: (row) => row.notes },
         { name: 'images', label: 'Images' },
         { name: 'actions', label: 'Actions' },
@@ -472,6 +481,8 @@ export default {
         endTime: this.form.endTime || null,
         location: this.form.location,
         notes: this.form.notes,
+        price: this.form.price !== '' && this.form.price != null ? parseFloat(this.form.price) : null,
+
         lat,
         lng,
         category_id: this.form.category_id,

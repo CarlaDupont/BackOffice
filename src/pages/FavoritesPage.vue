@@ -92,58 +92,62 @@ export default {
         const now = new Date()
         const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
 
-        // Categories
+        // Charger catégories
         const { data: categories } = await supabase.from('categories').select('id, name')
         const categoryMap = Object.fromEntries(categories.map(c => [c.id, c.name]))
 
-        // Destinations (roadtrips)
+        // Charger destinations (roadtrips)
         const { data: destinations } = await supabase.from('destinations')
           .select('id, startTime, endTime, created_at, category_id')
 
+        // Stats de base
         this.totalTrips = destinations.length
         const durations = destinations
           .filter(d => d.startTime && d.endTime)
           .map(d => (new Date(d.endTime) - new Date(d.startTime)) / 86400000)
         this.averageDuration = durations.length
-          ? Math.round(durations.reduce((a, b) => a + b) / durations.length)
+          ? Math.round(durations.reduce((a, b) => a + b, 0) / durations.length)
           : 0
         this.tripsThisMonth = destinations.filter(d => d.created_at >= firstOfMonth).length
         this.totalDestinations = destinations.length
 
-        // Chart Catégories
+        // Chart Répartition par catégorie
         const catCounts = {}
         destinations.forEach(d => {
           const name = categoryMap[d.category_id] || 'Non catégorisé'
           catCounts[name] = (catCounts[name] || 0) + 1
         })
-        this.categoryChart.series = Object.values(catCounts)
-        this.categoryChart.options.labels = Object.keys(catCounts)
+        this.categoryChart = {
+          series: Object.values(catCounts),
+          options: { labels: Object.keys(catCounts), legend: { position: 'bottom' } }
+        }
 
-        // Réservations
+        // Charger réservations
         const { data: reservations } = await supabase.from('reservations')
           .select('id, created_at, user_id, destination_id')
         this.totalReservations = reservations.length
         this.reservationsThisMonth = reservations.filter(r => r.created_at >= firstOfMonth).length
 
-        // Préférences utilisateurs
-        const userCat = {}
+        // Chart Préférences utilisateurs (catégorie favorite par utilisateur)
+        const userCatMap = {}
         reservations.forEach(r => {
           const dest = destinations.find(d => d.id === r.destination_id)
           if (!dest) return
           const cat = categoryMap[dest.category_id] || 'Non catégorisé'
-          userCat[r.user_id] = userCat[r.user_id] || {}
-          userCat[r.user_id][cat] = (userCat[r.user_id][cat] || 0) + 1
+          if (!userCatMap[r.user_id]) userCatMap[r.user_id] = {}
+          userCatMap[r.user_id][cat] = (userCatMap[r.user_id][cat] || 0) + 1
         })
-        const pref = {}
-        Object.values(userCat).forEach(cMap => {
-          const fav = Object.keys(cMap).reduce((a, b) => cMap[a] > cMap[b] ? a : b)
-          pref[fav] = (pref[fav] || 0) + 1
+        const prefCounts = {}
+        Object.values(userCatMap).forEach(userMap => {
+          const favCat = Object.keys(userMap).reduce((a, b) => userMap[a] > userMap[b] ? a : b)
+          prefCounts[favCat] = (prefCounts[favCat] || 0) + 1
         })
-        this.userPrefChart.series = Object.values(pref)
-        this.userPrefChart.options.labels = Object.keys(pref)
-
+        this.userPrefChart = {
+          series: Object.values(prefCounts),
+          options: { labels: Object.keys(prefCounts), legend: { position: 'bottom' } }
+        }
       } catch (e) {
-        console.error('Erreur chargement stats:', e)
+        console.error('Erreur chargement stats :', e)
       }
     }
   }

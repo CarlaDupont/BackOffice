@@ -52,13 +52,14 @@
 
     <!-- Dialog ajout / édition destination -->
     <q-dialog v-model="dialogOpen" persistent>
-      <q-card style="min-width: 400px; max-width: 600px" >
+      <q-card style="min-width: 400px; max-width: 600px">
         <q-card-section>
           <div class="text-h6">{{ editMode ? 'Modifier' : 'Ajouter' }} une destination</div>
           <q-separator class="q-my-sm" />
 
           <q-input v-model="form.title" label="Titre" outlined dense class="q-mb-sm" />
           <q-select
+            v-model="form.type"
             :options="destinationTypes"
             option-label="label"
             option-value="value"
@@ -94,7 +95,6 @@
             class="q-mb-sm"
           />
 
-          <!-- Aperçu images existantes -->
           <div v-if="form.existingImages.length" class="q-mb-sm">
             <div class="text-caption q-mb-xs">Images existantes</div>
             <div class="existing-images-container">
@@ -107,7 +107,6 @@
             </div>
           </div>
 
-          <!-- Upload et preview nouveaux fichiers -->
           <q-file
             v-model="form.files"
             label="Sélectionner des images"
@@ -148,68 +147,121 @@
       </q-card>
     </q-dialog>
 
-    <!-- Dialog CRUD catégories -->
-    <q-dialog v-model="dialogManageCategories" persistent>
+ <q-dialog
+  v-model="dialogManageCategories"
+  persistent
+  full-height
+>
   <q-card
-    style="
-      width: 600px;
-      height: 80vh;
-      display: flex;
-      flex-direction: column;
-    "
+    style="width: 80vw; max-width: 800px; height: 80vh; display: flex; flex-direction: column;"
   >
-    <!-- En-tête -->
     <q-card-section class="text-h6">
       Gestion des catégories
     </q-card-section>
     <q-separator />
 
-    <!-- Tableau scrollable -->
-    <q-card-section
-      style="
-        flex: 1;
-        padding: 0;
-        overflow-y: auto;
-      "
-    >
-      <q-table
-        :rows="categories"
-        :columns="categoryColumns"
-        row-key="id"
-        flat dense hide-bottom
-      >
-        <template v-slot:body-cell-actions="props">
-          <q-td>
-            <q-btn flat dense icon="edit" color="primary"
-              @click="editCategory(props.row)" />
-            <q-btn flat dense icon="delete" color="negative"
-              @click="deleteCategory(props.row.id)" />
-          </q-td>
-        </template>
-      </q-table>
-    </q-card-section>
+    <!-- tableau sans pagination, scrollable -->
+    <!-- tableau sans pagination, scrollable -->
+<q-card-section style="flex: 1; padding: 0; overflow-y: auto;">
+  <q-table
+    :rows="categories"
+    :columns="categoryColumns"
+    row-key="id"
+    flat
+    dense
+    :rows-per-page-options="[categories.length]"
+    :rows-per-page="categories.length"
+    hide-bottom
+  >
+    <!-- Colonne image -->
+    <template v-slot:body-cell-image="props">
+      <q-td>
+        <img
+          v-if="props.row.existingImage"
+          :src="getImageUrl(props.row.existingImage)"
+          alt="Catégorie"
+          class="category-image"
+        />
+      </q-td>
+    </template>
+
+    <!-- Colonne nom -->
+    <template v-slot:body-cell-name="props">
+      <q-td>
+        {{ props.row.name }}
+      </q-td>
+    </template>
+
+    <!-- Colonne actions -->
+    <template v-slot:body-cell-actions="props">
+      <q-td>
+        <q-btn
+          flat
+          dense
+          icon="edit"
+          color="primary"
+          @click="editCategory(props.row)"
+        />
+        <q-btn
+          flat
+          dense
+          icon="delete"
+          color="negative"
+          @click="deleteCategory(props.row.id)"
+        />
+      </q-td>
+    </template>
+  </q-table>
+</q-card-section>
+
 
     <q-separator />
 
-    <!-- Formulaire -->
+    <!-- formulaire Add/Edit -->
     <q-card-section>
       <q-input
         v-model="categoryForm.name"
-        label="Ajouter / Modifier une catégorie"
-        outlined dense
+        label="Nom de la catégorie"
+        outlined
+        dense
         :rules="[v => !!v || 'Le nom est requis']"
+        class="q-mb-md"
       />
+
+      <div v-if="categoryForm.existingImage" class="q-mb-sm">
+        <div class="text-caption q-mb-xs">Image actuelle</div>
+        <img
+          :src="getImageUrl(categoryForm.existingImage)"
+          alt="aperçu"
+          class="preview-img"
+        />
+      </div>
+
+      <q-file
+        v-model="categoryForm.file"
+        label="Sélectionner une image"
+        accept="image/*"
+        outlined
+        dense
+        @change="updateCategoryPreview"
+      />
+
+      <div v-if="categoryForm.previewUrl" class="q-mt-sm">
+        <div class="text-caption q-mb-xs">Aperçu</div>
+        <img
+          :src="categoryForm.previewUrl"
+          alt="aperçu"
+          class="preview-img"
+        />
+      </div>
     </q-card-section>
 
-    <!-- Actions -->
     <q-card-actions align="right">
       <q-btn flat label="Annuler" @click="closeCategoryDialog" />
       <q-btn flat label="Enregistrer" color="primary" @click="saveCategory" />
     </q-card-actions>
   </q-card>
 </q-dialog>
-
-
 
 
   </q-page>
@@ -228,7 +280,7 @@ export default {
       destinations: [],
       defaultCenter: [48.8566, 2.3522],
       destinationTypes: [
-        { label: 'Musée', value: 'musée' },
+        { label: 'Musée', value: 'musee' },
         { label: 'Spa', value: 'spa' },
         { label: 'Parc attraction', value: 'parc' },
         { label: 'Jeu pour enfant', value: 'jeu' },
@@ -253,7 +305,13 @@ export default {
       // Catégories
       categories: [],
       dialogManageCategories: false,
-      categoryForm: { id: null, name: '' },
+      categoryForm: {
+        id: null,
+        name: '',
+        existingImage: null,
+        file: null,
+        previewUrl: ''
+      },
 
       // Colonnes
       columns: [
@@ -265,19 +323,18 @@ export default {
         { name: 'actions', label: 'Actions' }
       ],
       categoryColumns: [
+        { name: 'image', label: 'Image', field: 'image', sortable: false },
         { name: 'name', label: 'Nom', field: 'name' },
         { name: 'actions', label: 'Actions', field: 'actions', sortable: false }
       ]
     }
   },
   computed: {
-    // Markers pour la carte principale
     allMarkers() {
       return this.destinations
         .filter(d => d.lat != null && d.lng != null)
         .map(d => ({ position: [d.lat, d.lng], popup: d.title }))
     },
-    // Centre et marqueurs pour le form
     formCenter() {
       return this.form.coords.length ? this.form.coords : this.defaultCenter
     },
@@ -302,9 +359,13 @@ export default {
       this.editMode = false
       this.originalId = null
       this.form = {
-        title: '', location: '',
-        notes: '', coords: [], files: [],
-        previewUrls: [], existingImages: [],
+        title: '',
+        location: '',
+        notes: '',
+        coords: [],
+        files: [],
+        previewUrls: [],
+        existingImages: [],
         category_id: null
       }
       this.dialogOpen = true
@@ -325,7 +386,6 @@ export default {
       this.dialogOpen = true
     },
     async saveDestination() {
-      // géocodage si nécessaire
       if (!this.form.coords.length) await this.geocodeLocation()
       if (!this.form.coords.length) { alert('Lieu introuvable'); return }
 
@@ -355,12 +415,12 @@ export default {
     },
     getImageArray(path) {
       if (!path) return []
-      if (Array.isArray(path)) return path
-      return [path]
+      return Array.isArray(path) ? path : [path]
     },
     getImageUrl(path) {
-      if (!path) return ''
-      return supabase.storage.from('products').getPublicUrl(path).data.publicUrl
+      return path
+        ? supabase.storage.from('products').getPublicUrl(path).data.publicUrl
+        : ''
     },
     updatePreviews() {
       this.form.previewUrls.forEach(u => URL.revokeObjectURL(u))
@@ -398,25 +458,77 @@ export default {
 
     // ----- Catégories CRUD -----
     async fetchCategories() {
-      const { data, error } = await supabase.from('categories').select('*').order('name')
+      const { data, error } = await supabase
+        .from('categories')
+        .select('id, name, image_path')
+        .order('name')
       if (error) console.error(error)
-      else this.categories = data
+      else {
+        this.categories = data.map(cat => ({
+          ...cat,
+          existingImage: cat.image_path
+        }))
+      }
     },
-    openEditCategoryDialog(row) {
-      this.categoryForm = { id: row.id, name: row.name }
+    updateCategoryPreview() {
+      if (this.categoryForm.previewUrl) {
+        URL.revokeObjectURL(this.categoryForm.previewUrl)
+      }
+      this.categoryForm.previewUrl = this.categoryForm.file
+        ? URL.createObjectURL(this.categoryForm.file)
+        : ''
+    },
+    editCategory(row) {
+      this.categoryForm = {
+        id: row.id,
+        name: row.name,
+        existingImage: row.existingImage,
+        file: null,
+        previewUrl: ''
+      }
       this.dialogManageCategories = true
     },
     closeCategoryDialog() {
-      this.categoryForm = { id: null, name: '' }
+      this.categoryForm = {
+        id: null,
+        name: '',
+        existingImage: null,
+        file: null,
+        previewUrl: ''
+      }
       this.dialogManageCategories = false
     },
     async saveCategory() {
       if (!this.categoryForm.name.trim()) return
-      if (this.categoryForm.id) {
-        await supabase.from('categories').update({ name: this.categoryForm.name }).eq('id', this.categoryForm.id)
-      } else {
-        await supabase.from('categories').insert({ name: this.categoryForm.name })
+
+      let imagePath = this.categoryForm.existingImage
+
+      if (this.categoryForm.file) {
+        const file = this.categoryForm.file
+        const ext = file.name.split('.').pop()
+        const key = `${crypto.randomUUID()}.${ext}`
+        const { error: uploadError } = await supabase
+          .storage
+          .from('products')
+          .upload(key, file, { upsert: true })
+        if (uploadError) {
+          console.error(uploadError)
+          return
+        }
+        imagePath = key
       }
+
+      const payload = {
+        name: this.categoryForm.name,
+        image_path: imagePath
+      }
+
+      if (this.categoryForm.id) {
+        await supabase.from('categories').update(payload).eq('id', this.categoryForm.id)
+      } else {
+        await supabase.from('categories').insert([payload])
+      }
+
       this.fetchCategories()
       this.closeCategoryDialog()
     },
@@ -443,4 +555,7 @@ export default {
 .preview-img { width: 80px; height: 80px; object-fit: cover; border-radius: 4px; }
 .remove-image-btn { position: absolute; top: -8px; right: -8px; background: white; border-radius: 50%; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
 .new-images-container, .existing-images-container { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* Catégories */
+.category-image { width: 40px; height: 40px; object-fit: cover; border-radius: 4px; }
 </style>

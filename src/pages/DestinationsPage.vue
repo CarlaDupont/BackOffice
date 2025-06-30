@@ -59,7 +59,6 @@
 
           <q-input v-model="form.title" label="Titre" outlined dense class="q-mb-sm" />
           <q-select
-            v-model="form.type"
             :options="destinationTypes"
             option-label="label"
             option-value="value"
@@ -242,7 +241,6 @@ export default {
       uploadingImages: false,
       form: {
         title: '',
-        type: '',
         location: '',
         notes: '',
         coords: [],
@@ -260,7 +258,6 @@ export default {
       // Colonnes
       columns: [
         { name: 'title', label: 'Titre', field: row => row.title },
-        { name: 'type', label: 'Type', field: 'type' },
         { name: 'category', label: 'Catégorie', field: row => row.category?.name || '—' },
         { name: 'location', label: 'Lieu', field: row => row.location },
         { name: 'notes', label: 'Notes', field: row => row.notes },
@@ -305,7 +302,7 @@ export default {
       this.editMode = false
       this.originalId = null
       this.form = {
-        title: '', type: '', location: '',
+        title: '', location: '',
         notes: '', coords: [], files: [],
         previewUrls: [], existingImages: [],
         category_id: null
@@ -317,7 +314,6 @@ export default {
       this.originalId = dest.id
       this.form = {
         title: dest.title,
-        type: dest.type,
         location: dest.location,
         notes: dest.notes,
         coords: [dest.lat, dest.lng],
@@ -336,7 +332,6 @@ export default {
       const [lat, lng] = this.form.coords
       const payload = {
         title: this.form.title,
-        type: this.form.type,
         location: this.form.location,
         notes: this.form.notes,
         lat, lng,

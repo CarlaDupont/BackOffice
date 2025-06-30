@@ -10,7 +10,7 @@
     </div>
 
     <div class="q-mb-md row justify-end gap-2">
-      <q-btn label="Ajouter une réservation" color="primary" @click="openAddReservationDialog" />
+      <q-btn label="Ajouter une réservation" color="primary" @click="openAddReservationDialog()" />
     </div>
 
     <q-table
@@ -43,7 +43,7 @@
         </q-card-section>
         <q-card-actions align="right">
           <q-btn flat label="Annuler" color="negative" @click="dialogAddReservation = false" />
-          <q-btn flat :label="editMode ? 'Enregistrer' : 'Ajouter'" color="primary" @click="submitReservation" />
+          <q-btn flat :label="editMode ? 'Enregistrer' : 'Ajouter'" color="primary" @click="submitReservation()" />
         </q-card-actions>
       </q-card>
     </q-dialog>
@@ -116,6 +116,7 @@ export default {
     this.refreshAll()
   },
   methods: {
+
     async refreshAll () {
       this.loading = true
       await Promise.all([

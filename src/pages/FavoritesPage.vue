@@ -33,7 +33,7 @@
       </div>
     </div>
 
-    <!-- Graphiques -->
+    <!-- Graphiques : Catégories + Préférences utilisateurs -->
     <div class="charts-row">
       <!-- Donut Catégories -->
       <q-card class="chart-card">
@@ -44,19 +44,6 @@
             type="pie"
             :options="categoryChart.options"
             :series="categoryChart.series"
-          />
-        </q-card-section>
-      </q-card>
-
-      <!-- Donut Types -->
-      <q-card class="chart-card">
-        <q-card-section>
-          <div class="chart-title">Préférences par type</div>
-          <apexchart
-            height="220"
-            type="donut"
-            :options="typeChart.options"
-            :series="typeChart.series"
           />
         </q-card-section>
       </q-card>
@@ -93,7 +80,6 @@ export default {
       reservationsThisMonth: 0,
       totalDestinations: 0,
       categoryChart: { series: [], options: { labels: [], legend: { position: 'bottom' } } },
-      typeChart:     { series: [], options: { labels: [], legend: { position: 'bottom' } } },
       userPrefChart: { series: [], options: { labels: [], legend: { position: 'bottom' } } }
     }
   },
@@ -111,54 +97,50 @@ export default {
         const categoryMap = Object.fromEntries(categories.map(c => [c.id, c.name]))
 
         // Destinations (roadtrips)
-        const { data: destinations } = await supabase.from('destinations').select('id, startTime, endTime, created_at, category_id, type')
-        // Stats de base
+        const { data: destinations } = await supabase.from('destinations')
+          .select('id, startTime, endTime, created_at, category_id')
+
         this.totalTrips = destinations.length
         const durations = destinations
           .filter(d => d.startTime && d.endTime)
           .map(d => (new Date(d.endTime) - new Date(d.startTime)) / 86400000)
         this.averageDuration = durations.length
-          ? Math.round(durations.reduce((a,b) => a+b)/durations.length)
+          ? Math.round(durations.reduce((a, b) => a + b) / durations.length)
           : 0
         this.tripsThisMonth = destinations.filter(d => d.created_at >= firstOfMonth).length
         this.totalDestinations = destinations.length
 
-        // Catégories
+        // Chart Catégories
         const catCounts = {}
         destinations.forEach(d => {
           const name = categoryMap[d.category_id] || 'Non catégorisé'
-          catCounts[name] = (catCounts[name]||0) +1
+          catCounts[name] = (catCounts[name] || 0) + 1
         })
-        this.categoryChart = { series: Object.values(catCounts), options: { labels: Object.keys(catCounts), legend: { position: 'bottom' } } }
-
-        // Types
-        const typeCounts = {}
-        destinations.forEach(d => {
-          const t = d.type || 'Inconnu'
-          typeCounts[t] = (typeCounts[t]||0) +1
-        })
-        this.typeChart = { series: Object.values(typeCounts), options: { labels: Object.keys(typeCounts), legend: { position: 'bottom' } } }
+        this.categoryChart.series = Object.values(catCounts)
+        this.categoryChart.options.labels = Object.keys(catCounts)
 
         // Réservations
-        const { data: reservations } = await supabase.from('reservations').select('id, status, created_at, user_id, destination_id')
+        const { data: reservations } = await supabase.from('reservations')
+          .select('id, created_at, user_id, destination_id')
         this.totalReservations = reservations.length
         this.reservationsThisMonth = reservations.filter(r => r.created_at >= firstOfMonth).length
 
         // Préférences utilisateurs
         const userCat = {}
         reservations.forEach(r => {
-          const dest = destinations.find(d => d.id===r.destination_id)
+          const dest = destinations.find(d => d.id === r.destination_id)
           if (!dest) return
-          const cat = categoryMap[dest.category_id]||'Non catégorisé'
-          userCat[r.user_id] = userCat[r.user_id]||{}
-          userCat[r.user_id][cat] = (userCat[r.user_id][cat]||0)+1
+          const cat = categoryMap[dest.category_id] || 'Non catégorisé'
+          userCat[r.user_id] = userCat[r.user_id] || {}
+          userCat[r.user_id][cat] = (userCat[r.user_id][cat] || 0) + 1
         })
         const pref = {}
         Object.values(userCat).forEach(cMap => {
-          const fav = Object.keys(cMap).reduce((a,b)=> cMap[a]>cMap[b]?a:b)
-          pref[fav] = (pref[fav]||0)+1
+          const fav = Object.keys(cMap).reduce((a, b) => cMap[a] > cMap[b] ? a : b)
+          pref[fav] = (pref[fav] || 0) + 1
         })
-        this.userPrefChart = { series: Object.values(pref), options:{ labels:Object.keys(pref), legend:{position:'bottom'} } }
+        this.userPrefChart.series = Object.values(pref)
+        this.userPrefChart.options.labels = Object.keys(pref)
 
       } catch (e) {
         console.error('Erreur chargement stats:', e)
@@ -171,11 +153,11 @@ export default {
 <style scoped>
 .statistics-page { background: #f9fafa; min-height: 100%; }
 .page-header h1 { margin-bottom: 24px; font-size: 24px; color: #333; }
-.cards-row { display:flex; flex-wrap:wrap; gap:16px; margin-bottom:24px; }
-.stat-card { flex:1 1 180px; background:#fff; border-radius:8px; padding:16px; box-shadow:0 2px 6px #0001; }
-.stat-title { font-size:14px; color:#666; margin-bottom:8px; }
-.stat-value { font-size:28px; color:#222; }
-.charts-row { display:flex; flex-wrap:wrap; gap:16px; }
-.chart-card { flex:1 1 300px; background:#fff; border-radius:8px; padding:8px; box-shadow:0 1px 3px rgba(0,0,0,0.1); }
-.chart-title { font-size:14px; color:#333; margin-bottom:8px; }
+.cards-row { display: flex; flex-wrap: wrap; gap: 16px; margin-bottom: 24px; }
+.stat-card { flex: 1 1 180px; background: #fff; border-radius: 8px; padding: 16px; box-shadow: 0 2px 6px #0001; }
+.stat-title { font-size: 14px; color: #666; margin-bottom: 8px; }
+.stat-value { font-size: 28px; color: #222; }
+.charts-row { display: flex; flex-wrap: wrap; gap: 16px; }
+.chart-card { flex: 1 1 300px; background: #fff; border-radius: 8px; padding: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+.chart-title { font-size: 14px; color: #333; margin-bottom: 8px; }
 </style>

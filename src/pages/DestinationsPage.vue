@@ -1,3 +1,4 @@
+
 <template>
   <q-page padding class="destinations-page">
     <div class="page-header"><h1>Destinations</h1></div>
@@ -19,22 +20,41 @@
           dense
           row-key="id"
         >
-          <!-- Colonne images -->
+          <!-- Colonne Promo -->
+          <template v-slot:body-cell-promo="props">
+            <q-td align="center">{{ ((1 - props.row.promo) * 100).toFixed(0) }}%</q-td>
+          </template>
+          <!-- Colonne Titre -->
+          <template v-slot:body-cell-title="props">
+            <q-td align="left">{{ props.row.title }}</q-td>
+          </template>
+          <!-- Colonne Catégorie -->
+          <template v-slot:body-cell-category="props">
+            <q-td align="left">{{ props.row.category?.name || '—' }}</q-td>
+          </template>
+          <!-- Colonne Lieu -->
+          <template v-slot:body-cell-location="props">
+            <q-td align="left">{{ props.row.location }}</q-td>
+          </template>
+          <!-- Colonne Notes -->
+          <template v-slot:body-cell-notes="props">
+            <q-td align="left">{{ props.row.notes }}</q-td>
+          </template>
+          <!-- Colonne Images -->
           <template v-slot:body-cell-images="props">
-            <q-td>
+            <q-td align="center">
               <div class="images-container">
                 <img
-                  v-for="(imagePath, index) in getImageArray(props.row.image_path)"
-                  :key="index"
-                  :src="getImageUrl(imagePath)"
+                  v-for="(img, i) in getImageArray(props.row.image_path)"
+                  :key="i"
+                  :src="getImageUrl(img)"
                   alt="aperçu"
                   class="destination-image"
                 />
               </div>
             </q-td>
           </template>
-
-          <!-- Colonne actions -->
+          <!-- Colonne Actions -->
           <template v-slot:body-cell-actions="props">
             <q-td align="right">
               <q-btn dense flat icon="edit" color="primary" @click="openEditDestinationDialog(props.row)" />
@@ -50,7 +70,7 @@
       <LeafletMap :center="defaultCenter" :markers="allMarkers" />
     </div>
 
-    <!-- Dialog ajout / édition destination -->
+    <!-- Dialog Ajout/Édition Destination -->
     <q-dialog v-model="dialogOpen" persistent>
       <q-card style="min-width: 400px; max-width: 600px">
         <q-card-section>
@@ -58,17 +78,6 @@
           <q-separator class="q-my-sm" />
 
           <q-input v-model="form.title" label="Titre" outlined dense class="q-mb-sm" />
-          <q-select
-            v-model="form.type"
-            :options="destinationTypes"
-            option-label="label"
-            option-value="value"
-            emit-value
-            map-options
-            label="Type"
-            outlined dense
-            class="q-mb-sm"
-          />
           <q-select
             v-model="form.category_id"
             :options="categories"
@@ -80,6 +89,18 @@
             outlined dense
             class="q-mb-sm"
           />
+
+          <!-- Champ Promo -->
+          <q-input
+            v-model.number="form.discountPercent"
+            label="Réduction (%)"
+            type="number"
+            min="0"
+            max="100"
+            outlined dense
+            class="q-mb-sm"
+          />
+
           <q-input
             v-model="form.location"
             label="Lieu"
@@ -95,18 +116,19 @@
             class="q-mb-sm"
           />
 
+          <!-- Images existantes -->
           <div v-if="form.existingImages.length" class="q-mb-sm">
             <div class="text-caption q-mb-xs">Images existantes</div>
             <div class="existing-images-container">
               <div v-for="(img, idx) in form.existingImages" :key="idx" class="image-item">
-                <img :src="getImageUrl(img)" class="preview-img" />
+                <img :src="getImageUrl(img)" class="preview-img" alt="aperçu" />
                 <q-btn flat round dense icon="close" color="negative" size="sm"
-                       class="remove-image-btn"
-                       @click="removeExistingImage(idx)" />
+                  class="remove-image-btn" @click="removeExistingImage(idx)" />
               </div>
             </div>
           </div>
 
+          <!-- Upload Nouvelles Images -->
           <q-file
             v-model="form.files"
             label="Sélectionner des images"
@@ -118,15 +140,14 @@
           />
           <div v-if="form.previewUrls.length" class="new-images-container q-mb-sm">
             <div v-for="(url, idx) in form.previewUrls" :key="idx" class="image-item">
-              <img :src="url" class="preview-img" />
+              <img :src="url" class="preview-img" alt="aperçu" />
               <q-btn flat round dense icon="close" color="negative" size="sm"
-                     class="remove-image-btn"
-                     @click="removeNewImage(idx)" />
+                class="remove-image-btn" @click="removeNewImage(idx)" />
             </div>
           </div>
           <q-btn
             v-if="form.files.length"
-            label="Ajouter les images immédiatement"
+            label="Ajouter les images"
             color="primary"
             icon="add"
             @click="addImagesImmediately"
@@ -147,123 +168,68 @@
       </q-card>
     </q-dialog>
 
- <q-dialog
-  v-model="dialogManageCategories"
-  persistent
-  full-height
->
-  <q-card
-    style="width: 80vw; max-width: 800px; height: 80vh; display: flex; flex-direction: column;"
-  >
-    <q-card-section class="text-h6">
-      Gestion des catégories
-    </q-card-section>
-    <q-separator />
-
-    <!-- tableau sans pagination, scrollable -->
-    <!-- tableau sans pagination, scrollable -->
-<q-card-section style="flex: 1; padding: 0; overflow-y: auto;">
-  <q-table
-    :rows="categories"
-    :columns="categoryColumns"
-    row-key="id"
-    flat
-    dense
-    :rows-per-page-options="[categories.length]"
-    :rows-per-page="categories.length"
-    hide-bottom
-  >
-    <!-- Colonne image -->
-    <template v-slot:body-cell-image="props">
-      <q-td>
-        <img
-          v-if="props.row.existingImage"
-          :src="getImageUrl(props.row.existingImage)"
-          alt="Catégorie"
-          class="category-image"
-        />
-      </q-td>
-    </template>
-
-    <!-- Colonne nom -->
-    <template v-slot:body-cell-name="props">
-      <q-td>
-        {{ props.row.name }}
-      </q-td>
-    </template>
-
-    <!-- Colonne actions -->
-    <template v-slot:body-cell-actions="props">
-      <q-td>
-        <q-btn
-          flat
-          dense
-          icon="edit"
-          color="primary"
-          @click="editCategory(props.row)"
-        />
-        <q-btn
-          flat
-          dense
-          icon="delete"
-          color="negative"
-          @click="deleteCategory(props.row.id)"
-        />
-      </q-td>
-    </template>
-  </q-table>
-</q-card-section>
-
-
-    <q-separator />
-
-    <!-- formulaire Add/Edit -->
-    <q-card-section>
-      <q-input
-        v-model="categoryForm.name"
-        label="Nom de la catégorie"
-        outlined
-        dense
-        :rules="[v => !!v || 'Le nom est requis']"
-        class="q-mb-md"
-      />
-
-      <div v-if="categoryForm.existingImage" class="q-mb-sm">
-        <div class="text-caption q-mb-xs">Image actuelle</div>
-        <img
-          :src="getImageUrl(categoryForm.existingImage)"
-          alt="aperçu"
-          class="preview-img"
-        />
-      </div>
-
-      <q-file
-        v-model="categoryForm.file"
-        label="Sélectionner une image"
-        accept="image/*"
-        outlined
-        dense
-        @change="updateCategoryPreview"
-      />
-
-      <div v-if="categoryForm.previewUrl" class="q-mt-sm">
-        <div class="text-caption q-mb-xs">Aperçu</div>
-        <img
-          :src="categoryForm.previewUrl"
-          alt="aperçu"
-          class="preview-img"
-        />
-      </div>
-    </q-card-section>
-
-    <q-card-actions align="right">
-      <q-btn flat label="Annuler" @click="closeCategoryDialog" />
-      <q-btn flat label="Enregistrer" color="primary" @click="saveCategory" />
-    </q-card-actions>
-  </q-card>
-</q-dialog>
-
-
+    <!-- Dialog Gestion Catégories -->
+    <q-dialog v-model="dialogManageCategories" persistent full-height>
+      <q-card style="width: 80vw; max-width: 800px; height: 80vh; display: flex; flex-direction: column;">
+        <q-card-section class="text-h6">Gestion des catégories</q-card-section>
+        <q-separator />
+        <q-card-section style="flex: 1; padding: 0; overflow-y: auto;">
+          <q-table
+            :rows="categories"
+            :columns="categoryColumns"
+            row-key="id"
+            flat dense
+            :rows-per-page-options="[categories.length]"
+            :rows-per-page="categories.length"
+            hide-bottom
+          >
+            <template v-slot:body-cell-image="props">
+              <q-td align="center">
+                <img v-if="props.row.existingImage" :src="getImageUrl(props.row.existingImage)" class="category-image" alt="Catégorie" />
+              </q-td>
+            </template>
+            <template v-slot:body-cell-name="props">
+              <q-td align="left">{{ props.row.name }}</q-td>
+            </template>
+            <template v-slot:body-cell-actions="props">
+              <q-td align="right">
+                <q-btn flat dense icon="edit" color="primary" @click="editCategory(props.row)" />
+                <q-btn flat dense icon="delete" color="negative" @click="deleteCategory(props.row.id)" />
+              </q-td>
+            </template>
+          </q-table>
+        </q-card-section>
+        <q-separator />
+        <q-card-section>
+          <q-input
+            v-model="categoryForm.name"
+            label="Nom de la catégorie"
+            outlined dense
+            :rules="[v => !!v || 'Le nom est requis']"
+            class="q-mb-md"
+          />
+          <div v-if="categoryForm.existingImage" class="q-mb-sm">
+            <div class="text-caption q-mb-xs">Image actuelle</div>
+            <img :src="getImageUrl(categoryForm.existingImage)" class="preview-img" alt="aperçu" />
+          </div>
+          <q-file
+            v-model="categoryForm.file"
+            label="Sélectionner une image"
+            accept="image/*"
+            outlined dense
+            @change="updateCategoryPreview"
+          />
+          <div v-if="categoryForm.previewUrl" class="q-mt-sm">
+            <div class="text-caption q-mb-xs">Aperçu</div>
+            <img :src="categoryForm.previewUrl" class="preview-img" alt="aperçu" />
+          </div>
+        </q-card-section>
+        <q-card-actions align="right">
+          <q-btn flat label="Annuler" @click="closeCategoryDialog" />
+          <q-btn flat label="Enregistrer"	color="primary" @click="saveCategory" />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
   </q-page>
 </template>
 
@@ -276,17 +242,8 @@ export default {
   components: { LeafletMap },
   data() {
     return {
-      // Destinations
       destinations: [],
       defaultCenter: [48.8566, 2.3522],
-      destinationTypes: [
-        { label: 'Musée', value: 'musee' },
-        { label: 'Spa', value: 'spa' },
-        { label: 'Parc attraction', value: 'parc' },
-        { label: 'Jeu pour enfant', value: 'jeu' },
-        { label: 'Randonnée', value: 'randonnee' },
-        { label: 'Spectacle', value: 'spectacle' }
-      ],
       dialogOpen: false,
       editMode: false,
       originalId: null,
@@ -299,33 +256,25 @@ export default {
         files: [],
         previewUrls: [],
         existingImages: [],
-        category_id: null
+        category_id: null,
+        discountPercent: 0
       },
-
-      // Catégories
       categories: [],
       dialogManageCategories: false,
-      categoryForm: {
-        id: null,
-        name: '',
-        existingImage: null,
-        file: null,
-        previewUrl: ''
-      },
-
-      // Colonnes
+      categoryForm: { id: null, name: '', existingImage: null, file: null, previewUrl: '' },
       columns: [
-        { name: 'title', label: 'Titre', field: row => row.title },
-        { name: 'category', label: 'Catégorie', field: row => row.category?.name || '—' },
-        { name: 'location', label: 'Lieu', field: row => row.location },
-        { name: 'notes', label: 'Notes', field: row => row.notes },
-        { name: 'images', label: 'Images' },
-        { name: 'actions', label: 'Actions' }
+        { name: 'images', label: 'Images', align: 'center' },
+        { name: 'title', label: 'Titre', align: 'left', field: row => row.title },
+        { name: 'promo', label: 'Promo', align: 'center', field: row => `${((1 - row.promo) * 100).toFixed(0)}%` },
+        { name: 'category', label: 'Catégorie', align: 'left', field: row => row.category?.name || '—' },
+        { name: 'location', label: 'Lieu', align: 'left', field: row => row.location },
+        { name: 'notes', label: 'Notes', align: 'left', field: row => row.notes },
+        { name: 'actions', label: 'Actions', align: 'right' }
       ],
       categoryColumns: [
-        { name: 'image', label: 'Image', field: 'image', sortable: false },
-        { name: 'name', label: 'Nom', field: 'name' },
-        { name: 'actions', label: 'Actions', field: 'actions', sortable: false }
+        { name: 'image', label: 'Image', align: 'center', field: 'image', sortable: false },
+        { name: 'name', label: 'Nom', align: 'left', field: 'name' },
+        { name: 'actions', label: 'Actions', align: 'right', field: 'actions', sortable: false }
       ]
     }
   },
@@ -335,45 +284,29 @@ export default {
         .filter(d => d.lat != null && d.lng != null)
         .map(d => ({ position: [d.lat, d.lng], popup: d.title }))
     },
-    formCenter() {
-      return this.form.coords.length ? this.form.coords : this.defaultCenter
-    },
-    formMarkers() {
-      return this.form.coords.length ? [{ position: this.form.coords, popup: this.form.title }] : []
-    }
+    formCenter() { return this.form.coords.length ? this.form.coords : this.defaultCenter },
+    formMarkers() { return this.form.coords.length ? [{ position: this.form.coords, popup: this.form.title }] : [] }
   },
   mounted() {
     this.fetchDestinations()
     this.fetchCategories()
   },
   methods: {
-    // ----- Destinations -----
     async fetchDestinations() {
-      const { data, error } = await supabase
-        .from('destinations')
-        .select('*, category:categories(id, name)')
+      const { data, error } = await supabase.from('destinations').select('*, category:categories(id,name), promo')
       if (error) console.error(error)
       else this.destinations = data
     },
     openAddDestinationDialog() {
       this.editMode = false
       this.originalId = null
-      this.form = {
-        title: '',
-        location: '',
-        notes: '',
-        coords: [],
-        files: [],
-        previewUrls: [],
-        existingImages: [],
-        category_id: null
-      }
+      Object.assign(this.form, { title: '', location: '', notes: '', coords: [], files: [], previewUrls: [], existingImages: [], category_id: null, discountPercent: 0 })
       this.dialogOpen = true
     },
     openEditDestinationDialog(dest) {
       this.editMode = true
       this.originalId = dest.id
-      this.form = {
+      Object.assign(this.form, {
         title: dest.title,
         location: dest.location,
         notes: dest.notes,
@@ -381,30 +314,28 @@ export default {
         files: [],
         previewUrls: [],
         existingImages: this.getImageArray(dest.image_path),
-        category_id: dest.category_id
-      }
+        category_id: dest.category_id,
+        discountPercent: ((1 - (dest.promo ?? 1)) * 100)
+      })
       this.dialogOpen = true
     },
     async saveDestination() {
       if (!this.form.coords.length) await this.geocodeLocation()
       if (!this.form.coords.length) { alert('Lieu introuvable'); return }
-
       const [lat, lng] = this.form.coords
+      const promoCoeff = 1 - (this.form.discountPercent / 100)
       const payload = {
         title: this.form.title,
         location: this.form.location,
         notes: this.form.notes,
-        lat, lng,
+        lat,
+        lng,
         category_id: this.form.category_id,
-        image_path: this.form.existingImages.length ? this.form.existingImages : null
+        image_path: this.form.existingImages.length ? this.form.existingImages : null,
+        promo: promoCoeff
       }
-
-      if (this.editMode) {
-        await supabase.from('destinations').update(payload).eq('id', this.originalId)
-      } else {
-        await supabase.from('destinations').insert([payload])
-      }
-
+      if (this.editMode) await supabase.from('destinations').update(payload).eq('id', this.originalId)
+      else await supabase.from('destinations').insert([payload])
       this.dialogOpen = false
       this.fetchDestinations()
     },
@@ -413,25 +344,11 @@ export default {
       await supabase.from('destinations').delete().eq('id', dest.id)
       this.fetchDestinations()
     },
-    getImageArray(path) {
-      if (!path) return []
-      return Array.isArray(path) ? path : [path]
-    },
-    getImageUrl(path) {
-      return path
-        ? supabase.storage.from('products').getPublicUrl(path).data.publicUrl
-        : ''
-    },
-    updatePreviews() {
-      this.form.previewUrls.forEach(u => URL.revokeObjectURL(u))
-      this.form.previewUrls = this.form.files.map(f => URL.createObjectURL(f))
-    },
-    removeExistingImage(i) { this.form.existingImages.splice(i,1) },
-    removeNewImage(i) {
-      URL.revokeObjectURL(this.form.previewUrls[i])
-      this.form.previewUrls.splice(i,1)
-      this.form.files.splice(i,1)
-    },
+    getImageArray(path) { if (!path) return []; return Array.isArray(path) ? path : [path] },
+    getImageUrl(path) { return path ? supabase.storage.from('products').getPublicUrl(path).data.publicUrl : '' },
+    updatePreviews() { this.form.previewUrls.forEach(u => URL.revokeObjectURL(u)); this.form.previewUrls = this.form.files.map(f => URL.createObjectURL(f)) },
+    removeExistingImage(i) { this.form.existingImages.splice(i, 1) },
+    removeNewImage(i) { URL.revokeObjectURL(this.form.previewUrls[i]); this.form.previewUrls.splice(i, 1); this.form.files.splice(i, 1) },
     async addImagesImmediately() {
       this.uploadingImages = true
       const uploaded = []
@@ -443,11 +360,9 @@ export default {
       }
       this.form.existingImages.push(...uploaded)
       this.form.files = []
-      this.form.previewUrls.forEach(u=>URL.revokeObjectURL(u))
+      this.form.previewUrls.forEach(u => URL.revokeObjectURL(u))
       this.form.previewUrls = []
-      if (this.editMode) {
-        await supabase.from('destinations').update({ image_path: this.form.existingImages }).eq('id', this.originalId)
-      }
+      if (this.editMode) await supabase.from('destinations').update({ image_path: this.form.existingImages }).eq('id', this.originalId)
       this.uploadingImages = false
     },
     async geocodeLocation() {
@@ -455,82 +370,38 @@ export default {
       const json = await res.json()
       if (json.length) this.form.coords = [parseFloat(json[0].lat), parseFloat(json[0].lon)]
     },
-
-    // ----- Catégories CRUD -----
     async fetchCategories() {
-      const { data, error } = await supabase
-        .from('categories')
-        .select('id, name, image_path')
-        .order('name')
+      const { data, error } = await supabase.from('categories').select('id,name,image_path').order('name')
       if (error) console.error(error)
-      else {
-        this.categories = data.map(cat => ({
-          ...cat,
-          existingImage: cat.image_path
-        }))
-      }
+      else this.categories = data.map(cat => ({ ...cat, existingImage: cat.image_path }))
     },
     updateCategoryPreview() {
-      if (this.categoryForm.previewUrl) {
-        URL.revokeObjectURL(this.categoryForm.previewUrl)
-      }
-      this.categoryForm.previewUrl = this.categoryForm.file
-        ? URL.createObjectURL(this.categoryForm.file)
-        : ''
+      if (this.categoryForm.previewUrl) URL.revokeObjectURL(this.categoryForm.previewUrl)
+      this.categoryForm.previewUrl = this.categoryForm.file ? URL.createObjectURL(this.categoryForm.file) : ''
     },
     editCategory(row) {
-      this.categoryForm = {
-        id: row.id,
-        name: row.name,
-        existingImage: row.existingImage,
-        file: null,
-        previewUrl: ''
-      }
+      this.categoryForm = { id: row.id, name: row.name, existingImage: row.existingImage, file: null, previewUrl: '' }
       this.dialogManageCategories = true
     },
     closeCategoryDialog() {
-      this.categoryForm = {
-        id: null,
-        name: '',
-        existingImage: null,
-        file: null,
-        previewUrl: ''
-      }
+      this.categoryForm = { id: null, name: '', existingImage: null, file: null, previewUrl: '' }
       this.dialogManageCategories = false
     },
     async saveCategory() {
       if (!this.categoryForm.name.trim()) return
-
       let imagePath = this.categoryForm.existingImage
-
       if (this.categoryForm.file) {
         const file = this.categoryForm.file
         const ext = file.name.split('.').pop()
         const key = `${crypto.randomUUID()}.${ext}`
-        const { error: uploadError } = await supabase
-          .storage
-          .from('products')
-          .upload(key, file, { upsert: true })
-        if (uploadError) {
-          console.error(uploadError)
-          return
-        }
+        const { error: uploadError } = await supabase.storage.from('products').upload(key, file, { upsert: true })
+        if (uploadError) { console.error(uploadError); return }
         imagePath = key
       }
-
-      const payload = {
-        name: this.categoryForm.name,
-        image_path: imagePath
-      }
-
-      if (this.categoryForm.id) {
-        await supabase.from('categories').update(payload).eq('id', this.categoryForm.id)
-      } else {
-        await supabase.from('categories').insert([payload])
-      }
-
-      this.fetchCategories()
-      this.closeCategoryDialog()
+      const payload = { name: this.categoryForm.name, image_path: imagePath }
+      if (this.categoryForm.id) await supabase.from('categories').update(payload).eq('id', this.categoryForm.id)
+      else await supabase.from('categories').insert([payload])
+      this.fetchCategories(); this.closeCategoryDialog()
     },
     async deleteCategory(id) {
       if (!confirm('Supprimer cette catégorie ?')) return
@@ -555,7 +426,5 @@ export default {
 .preview-img { width: 80px; height: 80px; object-fit: cover; border-radius: 4px; }
 .remove-image-btn { position: absolute; top: -8px; right: -8px; background: white; border-radius: 50%; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
 .new-images-container, .existing-images-container { display: flex; gap: 8px; flex-wrap: wrap; }
-
-/* Catégories */
 .category-image { width: 40px; height: 40px; object-fit: cover; border-radius: 4px; }
 </style>

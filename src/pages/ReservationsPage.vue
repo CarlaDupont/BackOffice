@@ -2,6 +2,7 @@
   <q-page padding class="reservations-page">
     <div class="page-header"><h1>Réservations</h1></div>
 
+    <!-- Statistiques -->
     <div class="cards-row">
       <div class="stat-card" v-for="card in statCards" :key="card.label">
         <div class="stat-title">{{ card.label }}</div>
@@ -9,210 +10,117 @@
       </div>
     </div>
 
-    <div class="q-mb-md row justify-end gap-2">
-      <q-btn label="Ajouter une réservation" color="primary" @click="openAddReservationDialog()" />
+    <!-- Tableau des réservations -->
+    <div class="cards-row">
+      <div class="table-card">
+        <q-table
+          :rows="formattedReservations"
+          :columns="columns"
+          row-key="id"
+          flat bordered dense
+          :loading="loading"
+        >
+          <template v-slot:body-cell-actions="props">
+            <q-td align="right">
+              <q-btn dense flat icon="edit" color="primary" @click="editReservation(props.row)" />
+              <q-btn dense flat icon="delete" color="negative" @click="deleteReservation(props.row.id)" />
+            </q-td>
+          </template>
+        </q-table>
+      </div>
     </div>
-
-    <q-table
-      title="Liste des réservations"
-      :rows="formattedReservations"
-      :columns="columns"
-      row-key="id"
-      flat bordered dense
-      :loading="loading"
-    >
-      <template v-slot:body-cell-actions="props">
-        <q-td align="right">
-          <q-btn dense flat icon="edit" color="primary" @click="editReservation(props.row)" />
-          <q-btn dense flat icon="delete" color="negative" @click="deleteReservation(props.row.id)" />
-        </q-td>
-      </template>
-    </q-table>
-
-    <q-dialog v-model="dialogAddReservation" persistent>
-      <q-card style="min-width:380px">
-        <q-card-section>
-          <div class="text-h6">{{ editMode ? 'Modifier' : 'Nouvelle' }} réservation</div>
-          <q-select v-model="newReservation.user_id" :options="users" option-label="email" option-value="id" emit-value map-options label="Utilisateur" outlined dense class="q-mt-md" />
-          <q-select v-model="newReservation.destination_id" :options="destinations" option-label="title" option-value="id" emit-value map-options label="Destination" outlined dense class="q-mt-md" />
-          <q-input v-model.number="newReservation.number_of_people" label="Nombre de personnes" type="number" outlined dense class="q-mt-md" />
-          <q-input v-model.number="newReservation.total_price" label="Prix total (€)" type="number" outlined dense class="q-mt-md" />
-          <q-input v-model="newReservation.start_date" label="Date de début" type="date" outlined dense class="q-mt-md" />
-          <q-input v-model="newReservation.end_date" label="Date de fin" type="date" outlined dense class="q-mt-md" />
-          <q-select v-model="newReservation.status" :options="statusOptions" label="Statut" outlined dense class="q-mt-md" />
-        </q-card-section>
-        <q-card-actions align="right">
-          <q-btn flat label="Annuler" color="negative" @click="dialogAddReservation = false" />
-          <q-btn flat :label="editMode ? 'Enregistrer' : 'Ajouter'" color="primary" @click="submitReservation()" />
-        </q-card-actions>
-      </q-card>
-    </q-dialog>
   </q-page>
 </template>
 
 <script>
 import { supabase } from 'src/boot/supabase'
-
 export default {
   name: 'ReservationsPage',
-  data () {
+  data() {
     return {
       loading: false,
       reservations: [],
-      users: [],
       destinations: [],
-      dialogAddReservation: false,
-      newReservation: {
-        id: null,
-        user_id: null,
-        destination_id: null,
-        number_of_people: null,
-        total_price: null,
-        start_date: null,
-        end_date: null,
-        status: 'confirmée'
-      },
-      statusOptions: ['confirmée', 'en attente'],
-      editMode: false,
+      // Stats
       reservationsThisWeek: 0,
       reservationsToday: 0,
       pendingReservations: 0,
       confirmedReservations: 0,
       columns: [
-  { name: 'destination', label: 'Destination', field: 'destination' },
-  { name: 'status', label: 'Statut', field: 'status' },
-  { name: 'number_of_people', label: 'Personnes', field: 'number_of_people' },
-  { name: 'total_price', label: 'Prix total (€)', field: 'total_price', format: v => v ? `${v} €` : '—' },
-  { name: 'start_date', label: 'Début', field: 'start_date', format: v => v ? new Date(v).toLocaleDateString() : '—' },
-  { name: 'end_date', label: 'Fin', field: 'end_date', format: v => v ? new Date(v).toLocaleDateString() : '—' },
-  { name: 'created_at', label: 'Réservée le', field: 'created_at', format: v => new Date(v).toLocaleDateString() },
-  { name: 'actions', label: '', field: 'actions', sortable: false }
-]
-
+        { name: 'destination', label: 'Destination', field: 'destination' },
+        { name: 'number_of_people', label: 'Personnes', field: 'number_of_people' },
+        { name: 'total_price', label: 'Prix total (€)', field: 'total_price', format: v => `${v} €` },
+        { name: 'start_date', label: 'Début', field: 'start_date', format: v => v ? new Date(v).toLocaleDateString() : '—' },
+        { name: 'end_date', label: 'Fin', field: 'end_date', format: v => v ? new Date(v).toLocaleDateString() : '—' },
+        { name: 'status', label: 'Statut', field: 'status' },
+        { name: 'actions', label: 'Actions', field: 'actions', sortable: false }
+      ]
     }
   },
   computed: {
-    statCards () {
+    statCards() {
       return [
-        { label: 'Réservations cette semaine', value: this.reservationsThisWeek },
-        { label: "Réservations aujourd'hui", value: this.reservationsToday },
-        { label: 'Réservations en attente', value: this.pendingReservations },
-        { label: 'Réservations confirmées', value: this.confirmedReservations }
+        { label: "Aujourd'hui", value: this.reservationsToday },
+        { label: 'Cette semaine', value: this.reservationsThisWeek },
+        { label: 'En attente', value: this.pendingReservations },
+        { label: 'Confirmées', value: this.confirmedReservations }
       ]
     },
-    formattedReservations () {
+    formattedReservations() {
       return this.reservations.map(r => {
-        const user = this.users.find(u => u.id === r.user_id)
-        const destination = this.destinations.find(d => d.id === r.destination_id)
+        const dest = this.destinations.find(d => d.id === r.destination_id)
         return {
           ...r,
-          email: user ? user.email : 'Inconnu',
-          destination: destination ? destination.title : 'Inconnue'
+          destination: dest ? dest.title : '—'
         }
       })
     }
   },
-  mounted () {
-    this.refreshAll()
+  async mounted() {
+    await this.refreshAll()
   },
   methods: {
-
-    async refreshAll () {
+    async refreshAll() {
       this.loading = true
-      await Promise.all([
-        this.fetchReservations(),
-        this.fetchUsers(),
-        this.fetchDestinations()
+      const today = new Date().toISOString().slice(0,10)
+      const weekAgo = new Date(); weekAgo.setDate(weekAgo.getDate() - 7)
+
+      const [{ data: resData, error: resErr }, { data: destData, error: destErr }] = await Promise.all([
+        supabase.from('reservations').select('*').order('created_at', { ascending: false }),
+        supabase.from('destinations').select('id, title')
       ])
+      if (resErr) {
+        console.error('Erreur chargement réservations :', resErr.message)
+        this.reservations = []
+      } else {
+        this.reservations = resData
+        this.reservationsToday = resData.filter(r => r.created_at.startsWith(today)).length
+        this.reservationsThisWeek = resData.filter(r => new Date(r.created_at) >= weekAgo).length
+        this.pendingReservations = resData.filter(r => r.status === 'en attente').length
+        this.confirmedReservations = resData.filter(r => r.status === 'confirmée').length
+      }
+      if (destErr) console.error('Erreur fetch destinations :', destErr.message)
+      else this.destinations = destData
+
       this.loading = false
     },
-    async fetchReservations () {
-  this.loading = true
-
-  const { data, error } = await supabase
-    .from('reservations')
-    .select('*')  // on sélectionne toutes les colonnes sans jointure
-    .order('created_at', { ascending: false })
-
-  if (error) {
-    console.error('Erreur chargement réservations :', error.message, error)
-    this.reservations = []
-    return
-  }
-
-  this.reservations = data
-
-  const today = new Date().toISOString().slice(0, 10)
-  const weekDate = new Date()
-  weekDate.setDate(weekDate.getDate() - 7)
-
-  this.reservationsToday = data.filter(r => r.created_at?.startsWith(today)).length
-  this.reservationsThisWeek = data.filter(r => new Date(r.created_at) >= weekDate).length
-  this.pendingReservations = data.filter(r => r.status === 'en attente').length
-  this.confirmedReservations = data.filter(r => r.status === 'confirmée').length
-
-  this.loading = false
-}
-,
-    async fetchUsers () {
-      const { data, error } = await supabase.from('user').select('id, email')
-      if (error) return console.error('Erreur fetch users:', error)
-      this.users = data
+    editReservation(res) {
+      this.$router.push({ name: 'EditReservation', params: { id: res.id } })
     },
-    async fetchDestinations () {
-      const { data, error } = await supabase.from('destinations').select('id, title')
-      if (error) return console.error('Erreur fetch destinations:', error)
-      this.destinations = data
-    },
-    openAddReservationDialog () {
-      this.newReservation = {
-        id: null,
-        user_id: null,
-        destination_id: null,
-        number_of_people: null,
-        total_price: null,
-        start_date: null,
-        end_date: null,
-        status: 'confirmée'
-      }
-      this.editMode = false
-      this.dialogAddReservation = true
-    },
-    async submitReservation () {
-      const payload = { ...this.newReservation }
-      if (!payload.user_id || !payload.destination_id) return
-
-      if (this.editMode && payload.id) {
-        const { error } = await supabase.from('reservations').update(payload).eq('id', payload.id)
-        if (error) return console.error('Erreur update :', error)
-      } else {
-        const { error } = await supabase.from('reservations').insert(payload)
-        if (error) return console.error('Erreur insert :', error)
-      }
-
-      this.dialogAddReservation = false
-      this.refreshAll()
-    },
-    editReservation (row) {
-      this.newReservation = { ...row }
-      this.editMode = true
-      this.dialogAddReservation = true
-    },
-    async deleteReservation (id) {
+    async deleteReservation(id) {
       if (!confirm('Supprimer cette réservation ?')) return
       const { error } = await supabase.from('reservations').delete().eq('id', id)
-      if (error) return console.error('Erreur suppression :', error)
-      this.refreshAll()
+      if (error) console.error('Erreur suppression :', error.message)
+      else this.refreshAll()
     }
   }
 }
 </script>
 
 <style scoped>
-.reservations-page { background:#f9fafa; min-height:100%; }
-.page-header h1 { margin:0 0 24px; font-size:24px; color:#333; }
-.cards-row { display:flex; flex-wrap:wrap; gap:16px; margin-bottom:24px; }
-.stat-card { flex:1 1 200px; background:#ffffff; border-radius:8px; padding:16px; box-shadow:0 2px 6px rgba(0,0,0,0.05); }
-.stat-title { font-size:14px; color:#666; margin-bottom:8px; }
-.stat-value { font-size:28px; color:#222; }
+.reservations-page { background: #f9fafa; min-height: 100% }
+.page-header h1 { margin: 0 0 24px; font-size: 24px; color: #333 }
+.cards-row { display: flex; gap: 16px; margin-bottom: 24px }
+.stat-card { flex: 1 1 200px; background: #fff; border-radius: 8px; padding: 16px; box-shadow: 0 2px 6px rgba(0,0,0,0.05) }
+.table-card { flex: 1; background: #fff; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.05); overflow: hidden }
 </style>

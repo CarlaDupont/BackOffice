@@ -1,7 +1,8 @@
-
 <template>
   <q-page padding class="destinations-page">
-    <div class="page-header"><h1>Destinations</h1></div>
+    <div class="page-header">
+      <h1>Destinations</h1>
+    </div>
 
     <!-- Actions principales -->
     <div class="section-row justify-between">
@@ -20,26 +21,6 @@
           dense
           row-key="id"
         >
-          <!-- Colonne Promo -->
-          <template v-slot:body-cell-promo="props">
-            <q-td align="center">{{ ((1 - props.row.promo) * 100).toFixed(0) }}%</q-td>
-          </template>
-          <!-- Colonne Titre -->
-          <template v-slot:body-cell-title="props">
-            <q-td align="left">{{ props.row.title }}</q-td>
-          </template>
-          <!-- Colonne Catégorie -->
-          <template v-slot:body-cell-category="props">
-            <q-td align="left">{{ props.row.category?.name || '—' }}</q-td>
-          </template>
-          <!-- Colonne Lieu -->
-          <template v-slot:body-cell-location="props">
-            <q-td align="left">{{ props.row.location }}</q-td>
-          </template>
-          <!-- Colonne Notes -->
-          <template v-slot:body-cell-notes="props">
-            <q-td align="left">{{ props.row.notes }}</q-td>
-          </template>
           <!-- Colonne Images -->
           <template v-slot:body-cell-images="props">
             <q-td align="center">
@@ -54,6 +35,46 @@
               </div>
             </q-td>
           </template>
+
+          <!-- Colonne Titre -->
+          <template v-slot:body-cell-title="props">
+            <q-td align="left">{{ props.row.title }}</q-td>
+          </template>
+
+          <!-- Colonne Prix initial -->
+          <template v-slot:body-cell-price="props">
+            <q-td align="right">
+              {{ props.row.price != null ? props.row.price.toFixed(2) + ' €' : '—' }}
+            </q-td>
+          </template>
+
+          <!-- Colonne Prix réduit -->
+          <template v-slot:body-cell-finalPrice="props">
+            <q-td align="right">
+              {{ props.row.price != null ? (props.row.price * props.row.promo).toFixed(2) + ' €' : '—' }}
+            </q-td>
+          </template>
+
+          <!-- Colonne Promo -->
+          <template v-slot:body-cell-promo="props">
+            <q-td align="center">{{ ((1 - props.row.promo) * 100).toFixed(0) }}%</q-td>
+          </template>
+
+          <!-- Colonne Catégorie -->
+          <template v-slot:body-cell-category="props">
+            <q-td align="left">{{ props.row.category?.name || '—' }}</q-td>
+          </template>
+
+          <!-- Colonne Lieu -->
+          <template v-slot:body-cell-location="props">
+            <q-td align="left">{{ props.row.location }}</q-td>
+          </template>
+
+          <!-- Colonne Notes -->
+          <template v-slot:body-cell-notes="props">
+            <q-td align="left">{{ props.row.notes }}</q-td>
+          </template>
+
           <!-- Colonne Actions -->
           <template v-slot:body-cell-actions="props">
             <q-td align="right">
@@ -90,7 +111,16 @@
             class="q-mb-sm"
           />
 
-          <!-- Champ Promo -->
+          <q-input
+            v-model.number="form.price"
+            label="Prix (€)"
+            type="number"
+            min="0"
+            step="0.01"
+            outlined dense
+            class="q-mb-sm"
+          />
+
           <q-input
             v-model.number="form.discountPercent"
             label="Réduction (%)"
@@ -178,7 +208,8 @@
             :rows="categories"
             :columns="categoryColumns"
             row-key="id"
-            flat dense
+            flat
+            dense
             :rows-per-page-options="[categories.length]"
             :rows-per-page="categories.length"
             hide-bottom
@@ -226,7 +257,7 @@
         </q-card-section>
         <q-card-actions align="right">
           <q-btn flat label="Annuler" @click="closeCategoryDialog" />
-          <q-btn flat label="Enregistrer"	color="primary" @click="saveCategory" />
+          <q-btn flat label="Enregistrer" color="primary" @click="saveCategory" />
         </q-card-actions>
       </q-card>
     </q-dialog>
@@ -257,7 +288,8 @@ export default {
         previewUrls: [],
         existingImages: [],
         category_id: null,
-        discountPercent: 0
+        discountPercent: 0,
+        price: null
       },
       categories: [],
       dialogManageCategories: false,
@@ -265,7 +297,9 @@ export default {
       columns: [
         { name: 'images', label: 'Images', align: 'center' },
         { name: 'title', label: 'Titre', align: 'left', field: row => row.title },
-        { name: 'promo', label: 'Promo', align: 'center', field: row => `${((1 - row.promo) * 100).toFixed(0)}%` },
+        { name: 'price', label: 'Prix', align: 'right', field: row => row.price != null ? row.price.toFixed(2) + ' €' : '—' },
+        { name: 'finalPrice', label: 'Prix promo', align: 'right', field: row => row.price!=null?(row.price*row.promo).toFixed(2)+' €':'—' },
+        { name: 'promo', label: 'Promo', align: 'center', field: row => `${((1-row.promo)*100).toFixed(0)}%` },
         { name: 'category', label: 'Catégorie', align: 'left', field: row => row.category?.name || '—' },
         { name: 'location', label: 'Lieu', align: 'left', field: row => row.location },
         { name: 'notes', label: 'Notes', align: 'left', field: row => row.notes },
@@ -280,8 +314,7 @@ export default {
   },
   computed: {
     allMarkers() {
-      return this.destinations
-        .filter(d => d.lat != null && d.lng != null)
+      return this.destinations.filter(d => d.lat!=null && d.lng!=null)
         .map(d => ({ position: [d.lat, d.lng], popup: d.title }))
     },
     formCenter() { return this.form.coords.length ? this.form.coords : this.defaultCenter },
@@ -293,17 +326,27 @@ export default {
   },
   methods: {
     async fetchDestinations() {
-      const { data, error } = await supabase.from('destinations').select('*, category:categories(id,name), promo')
-      if (error) console.error(error)
+      const { data, error } = await supabase.from('destinations')
+      .select(`
+        id, title, location, notes,
+        lat, lng, image_path,
+        category_id,
+        price, promo,
+        category:categories(id, name)
+      `)
+      if (error) console.error('fetchDestinations error:', error)
       else this.destinations = data
     },
-    openAddDestinationDialog() {
+    async openAddDestinationDialog() {
       this.editMode = false
       this.originalId = null
-      Object.assign(this.form, { title: '', location: '', notes: '', coords: [], files: [], previewUrls: [], existingImages: [], category_id: null, discountPercent: 0 })
+      Object.assign(this.form, {
+        title:'', location:'', notes:'', coords:[], files:[], previewUrls:[], existingImages:[],
+        category_id:null, discountPercent:0, price:null
+      })
       this.dialogOpen = true
     },
-    openEditDestinationDialog(dest) {
+    async openEditDestinationDialog(dest) {
       this.editMode = true
       this.originalId = dest.id
       Object.assign(this.form, {
@@ -315,7 +358,8 @@ export default {
         previewUrls: [],
         existingImages: this.getImageArray(dest.image_path),
         category_id: dest.category_id,
-        discountPercent: ((1 - (dest.promo ?? 1)) * 100)
+        discountPercent: ((1-(dest.promo||1))*100),
+        price: dest.price
       })
       this.dialogOpen = true
     },
@@ -323,15 +367,15 @@ export default {
       if (!this.form.coords.length) await this.geocodeLocation()
       if (!this.form.coords.length) { alert('Lieu introuvable'); return }
       const [lat, lng] = this.form.coords
-      const promoCoeff = 1 - (this.form.discountPercent / 100)
+      const promoCoeff = 1 - (this.form.discountPercent/100)
       const payload = {
         title: this.form.title,
         location: this.form.location,
         notes: this.form.notes,
-        lat,
-        lng,
+        lat, lng,
         category_id: this.form.category_id,
-        image_path: this.form.existingImages.length ? this.form.existingImages : null,
+        image_path: this.form.existingImages.length?this.form.existingImages:null,
+        price: this.form.price,
         promo: promoCoeff
       }
       if (this.editMode) await supabase.from('destinations').update(payload).eq('id', this.originalId)
@@ -344,47 +388,56 @@ export default {
       await supabase.from('destinations').delete().eq('id', dest.id)
       this.fetchDestinations()
     },
-    getImageArray(path) { if (!path) return []; return Array.isArray(path) ? path : [path] },
-    getImageUrl(path) { return path ? supabase.storage.from('products').getPublicUrl(path).data.publicUrl : '' },
-    updatePreviews() { this.form.previewUrls.forEach(u => URL.revokeObjectURL(u)); this.form.previewUrls = this.form.files.map(f => URL.createObjectURL(f)) },
-    removeExistingImage(i) { this.form.existingImages.splice(i, 1) },
-    removeNewImage(i) { URL.revokeObjectURL(this.form.previewUrls[i]); this.form.previewUrls.splice(i, 1); this.form.files.splice(i, 1) },
+    getImageArray(path) { return !path?[]:(Array.isArray(path)?path:[path]) },
+    getImageUrl(path) { return path?supabase.storage.from('products').getPublicUrl(path).data.publicUrl:'' },
+    updatePreviews() {
+      this.form.previewUrls.forEach(u => URL.revokeObjectURL(u))
+      this.form.previewUrls = this.form.files.map(f => URL.createObjectURL(f))
+    },
+    removeExistingImage(i) { this.form.existingImages.splice(i,1) },
+    removeNewImage(i) {
+      URL.revokeObjectURL(this.form.previewUrls[i])
+      this.form.previewUrls.splice(i,1)
+      this.form.files.splice(i,1)
+    },
     async addImagesImmediately() {
       this.uploadingImages = true
       const uploaded = []
       for (let file of this.form.files) {
         const ext = file.name.split('.').pop()
         const key = `${crypto.randomUUID()}.${ext}`
-        await supabase.storage.from('products').upload(key, file, { upsert: true })
+        await supabase.storage.from('products').upload(key, file, { upsert:true })
         uploaded.push(key)
       }
       this.form.existingImages.push(...uploaded)
       this.form.files = []
-      this.form.previewUrls.forEach(u => URL.revokeObjectURL(u))
+      this.form.previewUrls.forEach(u=>URL.revokeObjectURL(u))
       this.form.previewUrls = []
-      if (this.editMode) await supabase.from('destinations').update({ image_path: this.form.existingImages }).eq('id', this.originalId)
+      if (this.editMode) await supabase.from('destinations').update({ image_path:this.form.existingImages }).eq('id', this.originalId)
       this.uploadingImages = false
     },
     async geocodeLocation() {
-      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(this.form.location)}`)
-      const json = await res.json()
-      if (json.length) this.form.coords = [parseFloat(json[0].lat), parseFloat(json[0].lon)]
+      try {
+        const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(this.form.location)}`)
+        const json = await res.json()
+        if (json.length) this.form.coords = [parseFloat(json[0].lat), parseFloat(json[0].lon)]
+      } catch (e) { console.error(e) }
     },
     async fetchCategories() {
       const { data, error } = await supabase.from('categories').select('id,name,image_path').order('name')
       if (error) console.error(error)
-      else this.categories = data.map(cat => ({ ...cat, existingImage: cat.image_path }))
+      else this.categories = data.map(cat=>({ ...cat, existingImage:cat.image_path }))
     },
     updateCategoryPreview() {
       if (this.categoryForm.previewUrl) URL.revokeObjectURL(this.categoryForm.previewUrl)
-      this.categoryForm.previewUrl = this.categoryForm.file ? URL.createObjectURL(this.categoryForm.file) : ''
+      this.categoryForm.previewUrl = this.categoryForm.file?URL.createObjectURL(this.categoryForm.file):''
     },
     editCategory(row) {
-      this.categoryForm = { id: row.id, name: row.name, existingImage: row.existingImage, file: null, previewUrl: '' }
+      this.categoryForm = { id:row.id, name:row.name, existingImage:row.existingImage, file:null, previewUrl:'' }
       this.dialogManageCategories = true
     },
     closeCategoryDialog() {
-      this.categoryForm = { id: null, name: '', existingImage: null, file: null, previewUrl: '' }
+      this.categoryForm = { id:null,name:'',existingImage:null,file:null,previewUrl:'' }
       this.dialogManageCategories = false
     },
     async saveCategory() {
@@ -394,14 +447,15 @@ export default {
         const file = this.categoryForm.file
         const ext = file.name.split('.').pop()
         const key = `${crypto.randomUUID()}.${ext}`
-        const { error: uploadError } = await supabase.storage.from('products').upload(key, file, { upsert: true })
+        const { error:uploadError } = await supabase.storage.from('products').upload(key,file,{ upsert:true })
         if (uploadError) { console.error(uploadError); return }
         imagePath = key
       }
-      const payload = { name: this.categoryForm.name, image_path: imagePath }
-      if (this.categoryForm.id) await supabase.from('categories').update(payload).eq('id', this.categoryForm.id)
+      const payload = { name:this.categoryForm.name, image_path:imagePath }
+      if (this.categoryForm.id) await supabase.from('categories').update(payload).eq('id',this.categoryForm.id)
       else await supabase.from('categories').insert([payload])
-      this.fetchCategories(); this.closeCategoryDialog()
+      this.fetchCategories()
+      this.closeCategoryDialog()
     },
     async deleteCategory(id) {
       if (!confirm('Supprimer cette catégorie ?')) return

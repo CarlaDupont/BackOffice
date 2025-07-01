@@ -40,7 +40,6 @@ export default {
     return {
       loading: false,
       reservations: [],
-      destinations: [],
       // Stats
       reservationsThisWeek: 0,
       reservationsToday: 0,
@@ -48,6 +47,7 @@ export default {
       confirmedReservations: 0,
       columns: [
         { name: 'destination', label: 'Destination', field: 'destination' },
+        { name: 'category', label: 'Catégorie', field: 'category' },
         { name: 'number_of_people', label: 'Personnes', field: 'number_of_people' },
         { name: 'total_price', label: 'Prix total (€)', field: 'total_price', format: v => `${v} €` },
         { name: 'start_date', label: 'Début', field: 'start_date', format: v => v ? new Date(v).toLocaleDateString() : '—' },
@@ -67,13 +67,11 @@ export default {
       ]
     },
     formattedReservations() {
-      return this.reservations.map(r => {
-        const dest = this.destinations.find(d => d.id === r.destination_id)
-        return {
-          ...r,
-          destination: dest ? dest.title : '—'
-        }
-      })
+      return this.reservations.map(r => ({
+        ...r,
+        destination: r.destination?.title || '—',
+        category: r.destination?.category?.name || '—'
+      }))
     }
   },
   async mounted() {
@@ -82,25 +80,33 @@ export default {
   methods: {
     async refreshAll() {
       this.loading = true
-      const today = new Date().toISOString().slice(0,10)
-      const weekAgo = new Date(); weekAgo.setDate(weekAgo.getDate() - 7)
 
-      const [{ data: resData, error: resErr }, { data: destData, error: destErr }] = await Promise.all([
-        supabase.from('reservations').select('*').order('created_at', { ascending: false }),
-        supabase.from('destinations').select('id, title')
-      ])
+      // Récupère réservations avec destination et catégorie associées
+      const { data: resData, error: resErr } = await supabase
+        .from('reservations')
+        .select(
+          `*,
+            destination:destinations(
+              id,
+              title,
+              category:categories(id,name)
+            )`
+        )
+        .order('created_at', { ascending: false })
+
       if (resErr) {
         console.error('Erreur chargement réservations :', resErr.message)
         this.reservations = []
       } else {
         this.reservations = resData
+        const today = new Date().toISOString().slice(0,10)
+        const weekAgo = new Date(); weekAgo.setDate(weekAgo.getDate() - 7)
+
         this.reservationsToday = resData.filter(r => r.created_at.startsWith(today)).length
         this.reservationsThisWeek = resData.filter(r => new Date(r.created_at) >= weekAgo).length
         this.pendingReservations = resData.filter(r => r.status === 'en attente').length
         this.confirmedReservations = resData.filter(r => r.status === 'confirmée').length
       }
-      if (destErr) console.error('Erreur fetch destinations :', destErr.message)
-      else this.destinations = destData
 
       this.loading = false
     },

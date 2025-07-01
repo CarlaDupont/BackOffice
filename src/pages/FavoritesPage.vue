@@ -67,7 +67,6 @@
           <div class="text-caption">Note : {{ review.rating }} / 5</div>
           <p class="q-mt-sm">{{ review.comment }}</p>
           <div class="text-caption text-grey">
-            Par <strong>{{ review.userEmail || 'Utilisateur inconnu' }}</strong>
             le {{ new Date(review.created_at).toLocaleDateString('fr-FR') }}
           </div>
         </li>
@@ -116,7 +115,7 @@ export default {
 
         const { data: destinations, error: destinationsError } = await supabase
           .from('destinations')
-          .select('id, title, startTime, endTime, created_at, category_id')
+          .select('id, title, created_at, category_id')
         if (destinationsError) {
           console.error('Erreur Supabase lors du chargement des destinations :', destinationsError)
           return

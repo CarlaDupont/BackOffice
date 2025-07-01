@@ -3,7 +3,6 @@
     <div class="page-header">
       <h1>Notifications</h1>
     </div>
-
     <q-table
       title="Liste des notifications"
       :rows="notifications"
@@ -20,82 +19,56 @@ import { supabase } from 'src/boot/supabase'
 
 export default {
   name: 'NotificationsPage',
-  data () {
+  data() {
     return {
       notifications: [],
       loading: false,
       columns: [
-        { name: 'type', label: 'Type', field: 'type', sortable: true },
+        { name: 'category', label: 'Catégorie', field: 'category', sortable: true },
         { name: 'message', label: 'Message', field: 'message', sortable: true },
-        { name: 'created_at', label: 'Date', field: 'created_at', format: val => new Date(val).toLocaleString(), sortable: true }
+        { name: 'start_date', label: 'Date de début', field: 'start_date', format: val => val ? new Date(val).toLocaleDateString('fr-FR') : 'non définie', sortable: true },
+        { name: 'end_date', label: 'Date de fin', field: 'end_date', format: val => val ? new Date(val).toLocaleDateString('fr-FR') : 'non définie', sortable: true }
       ]
     }
   },
-  mounted () {
+  mounted() {
     this.fetchNotifications()
   },
   methods: {
-    async fetchNotifications () {
+    async fetchNotifications() {
       this.loading = true
-
-      // Récupérer les destinations (avec leur catégorie)
       const { data: destinations, error: errDest } = await supabase
         .from('destinations')
-        .select(`
-          id,
-          title,
-          startTime,
-          endTime,
-          created_at,
-          categories ( name )
-        `)
-
-      // Récupérer les réservations (avec la destination associée et sa catégorie)
+        .select('id, title, categories(name)')
       const { data: reservations, error: errRes } = await supabase
         .from('reservations')
-        .select(`
-          id,
-          status,
-          created_at,
-          destinations (
-            title,
-            startTime,
-            endTime,
-            categories ( name )
-          )
-        `)
-
+        .select('id, status, start_date, end_date, destinations(title, categories(name))')
       if (errDest || errRes) {
-        console.error('Erreur récupération données :', errDest || errRes)
+        console.error(errDest || errRes)
         this.loading = false
         return
       }
-
       const destNotifications = destinations.map(d => ({
         id: d.id,
-        type: 'Destination',
-        message: `Ajout : ${d.title} — Catégorie : ${d.categories?.name || 'non définie'} — du ${this.formatDate(d.startTime)} au ${this.formatDate(d.endTime)}`,
-        created_at: d.created_at
+        category: d.categories?.name || 'non définie',
+        message: `Ajout : ${d.title}`,
+        start_date: null,
+        end_date: null
       }))
-
-      const resNotifications = reservations.map(r => {
-        const dest = r.destinations
-        return {
-          id: r.id,
-          type: 'Réservation',
-          message: `Réservation ${r.status} pour : ${dest?.title || 'inconnue'} — Catégorie : ${dest?.categories?.name || 'non définie'} — du ${this.formatDate(dest?.startTime)} au ${this.formatDate(dest?.endTime)}`,
-          created_at: r.created_at
-        }
-      })
-
-      // Fusion des deux types de notifications
-      this.notifications = [...destNotifications, ...resNotifications].sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-
+      const resNotifications = reservations.map(r => ({
+        id: r.id,
+        category: r.destinations?.categories?.name || 'non définie',
+        message: `Réservation ${r.status} pour : ${r.destinations?.title || 'inconnue'}`,
+        start_date: r.start_date,
+        end_date: r.end_date
+      }))
+      this.notifications = [...destNotifications, ...resNotifications]
+        .sort((a, b) => {
+          const da = a.start_date || a.end_date || ''
+          const db = b.start_date || b.end_date || ''
+          return new Date(db) - new Date(da)
+        })
       this.loading = false
-    },
-    formatDate (date) {
-      if (!date) return 'non définie'
-      return new Date(date).toLocaleDateString()
     }
   }
 }
@@ -106,7 +79,6 @@ export default {
   background: #f9fafa;
   min-height: 100%;
 }
-
 .page-header h1 {
   margin: 0 0 24px;
   font-size: 24px;

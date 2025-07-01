@@ -1,11 +1,9 @@
 <template>
   <q-page padding class="statistics-page">
-    <!-- En-tête -->
     <div class="page-header">
       <h1>Catégories favorites et Statistiques</h1>
     </div>
 
-    <!-- Totaux et autres Stats -->
     <div class="cards-row mb-8">
       <div class="stat-card">
         <div class="stat-title">Total des roadtrips</div>
@@ -33,33 +31,47 @@
       </div>
     </div>
 
-    <!-- Graphiques : Catégories + Préférences utilisateurs -->
     <div class="charts-row">
-      <!-- Donut Catégories -->
       <q-card class="chart-card">
         <q-card-section>
           <div class="chart-title">Répartition par catégorie</div>
           <apexchart
-            height="220"
-            type="pie"
+            :height="220" type="pie"
             :options="categoryChart.options"
             :series="categoryChart.series"
           />
         </q-card-section>
       </q-card>
 
-      <!-- Donut Préférences utilisateurs -->
       <q-card class="chart-card">
         <q-card-section>
           <div class="chart-title">Préférences utilisateurs</div>
           <apexchart
-            height="220"
-            type="donut"
+            :height="220" type="donut"
             :options="userPrefChart.options"
             :series="userPrefChart.series"
           />
         </q-card-section>
       </q-card>
+    </div>
+
+    <div class="reviews-section q-pa-md">
+      <h2>Avis utilisateurs</h2>
+      <ul class="reviews-list">
+        <li
+          v-for="review in reviewsList"
+          :key="review.id"
+          class="review-item q-pa-sm q-mb-sm bg-white shadow-1 rounded"
+        >
+          <div class="text-subtitle1">{{ review.destinationTitle || 'Destination inconnue' }}</div>
+          <div class="text-caption">Note : {{ review.rating }} / 5</div>
+          <p class="q-mt-sm">{{ review.comment }}</p>
+          <div class="text-caption text-grey">
+            Par <strong>{{ review.userEmail || 'Utilisateur inconnu' }}</strong>
+            le {{ new Date(review.created_at).toLocaleDateString('fr-FR') }}
+          </div>
+        </li>
+      </ul>
     </div>
   </q-page>
 </template>
@@ -80,7 +92,8 @@ export default {
       reservationsThisMonth: 0,
       totalDestinations: 0,
       categoryChart: { series: [], options: { labels: [], legend: { position: 'bottom' } } },
-      userPrefChart: { series: [], options: { labels: [], legend: { position: 'bottom' } } }
+      userPrefChart: { series: [], options: { labels: [], legend: { position: 'bottom' } } },
+      reviewsList: []
     }
   },
   mounted() {
@@ -92,15 +105,23 @@ export default {
         const now = new Date()
         const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
 
-        // Charger catégories
-        const { data: categories } = await supabase.from('categories').select('id, name')
+        const { data: categories, error: categoriesError } = await supabase
+          .from('categories')
+          .select('id, name')
+        if (categoriesError) {
+          console.error('Erreur Supabase lors du chargement des catégories :', categoriesError)
+          return
+        }
         const categoryMap = Object.fromEntries(categories.map(c => [c.id, c.name]))
 
-        // Charger destinations (roadtrips)
-        const { data: destinations } = await supabase.from('destinations')
-          .select('id, startTime, endTime, created_at, category_id')
+        const { data: destinations, error: destinationsError } = await supabase
+          .from('destinations')
+          .select('id, title, startTime, endTime, created_at, category_id')
+        if (destinationsError) {
+          console.error('Erreur Supabase lors du chargement des destinations :', destinationsError)
+          return
+        }
 
-        // Stats de base
         this.totalTrips = destinations.length
         const durations = destinations
           .filter(d => d.startTime && d.endTime)
@@ -111,7 +132,6 @@ export default {
         this.tripsThisMonth = destinations.filter(d => d.created_at >= firstOfMonth).length
         this.totalDestinations = destinations.length
 
-        // Chart Répartition par catégorie
         const catCounts = {}
         destinations.forEach(d => {
           const name = categoryMap[d.category_id] || 'Non catégorisé'
@@ -122,13 +142,16 @@ export default {
           options: { labels: Object.keys(catCounts), legend: { position: 'bottom' } }
         }
 
-        // Charger réservations
-        const { data: reservations } = await supabase.from('reservations')
+        const { data: reservations, error: reservationsError } = await supabase
+          .from('reservations')
           .select('id, created_at, user_id, destination_id')
+        if (reservationsError) {
+          console.error('Erreur Supabase lors du chargement des réservations :', reservationsError)
+          return
+        }
         this.totalReservations = reservations.length
         this.reservationsThisMonth = reservations.filter(r => r.created_at >= firstOfMonth).length
 
-        // Chart Préférences utilisateurs (catégorie favorite par utilisateur)
         const userCatMap = {}
         reservations.forEach(r => {
           const dest = destinations.find(d => d.id === r.destination_id)
@@ -146,8 +169,55 @@ export default {
           series: Object.values(prefCounts),
           options: { labels: Object.keys(prefCounts), legend: { position: 'bottom' } }
         }
-      } catch (e) {
-        console.error('Erreur chargement stats :', e)
+
+        const { data: rawReviews, error: rawReviewsError } = await supabase
+          .from('reviews')
+          .select('*')
+        if (rawReviewsError) {
+          console.error('Erreur Supabase lors du chargement des avis bruts :', rawReviewsError)
+          this.reviewsList = []
+          return
+        }
+
+        const { data: allDestinations, error: allDestinationsError } = await supabase
+          .from('destinations')
+          .select('id, title')
+        if (allDestinationsError) {
+          console.error('Erreur Supabase lors du chargement des destinations pour les avis :', allDestinationsError)
+          this.reviewsList = []
+          return
+        }
+        const destinationTitles = new Map(allDestinations.map(d => [d.id, d.title]))
+
+        const { data: allUsers, error: allUsersError } = await supabase
+          .from('user')
+          .select('id, email')
+        if (allUsersError) {
+          console.error('Erreur Supabase lors du chargement des utilisateurs pour les avis :', allUsersError)
+          this.reviewsList = []
+          return
+        }
+        const userEmails = new Map(allUsers.map(u => [u.id, u.email]))
+
+        if (rawReviews) {
+          const processedReviews = rawReviews.map(review => ({
+            ...review,
+            destinationTitle: destinationTitles.get(review.destination_id),
+            userEmail: userEmails.get(review.user_id)
+          }))
+          const reviewMap = {}
+          processedReviews.forEach(r => {
+            const prev = reviewMap[r.destination_id]
+            if (!prev || new Date(r.created_at) > new Date(prev.created_at)) {
+              reviewMap[r.destination_id] = r
+            }
+          })
+          this.reviewsList = Object.values(reviewMap)
+        } else {
+          this.reviewsList = []
+        }
+      } catch (error) {
+        console.error('Erreur chargement des statistiques globale :', error)
       }
     }
   }
@@ -155,13 +225,17 @@ export default {
 </script>
 
 <style scoped>
-.statistics-page { background: #f9fafa; min-height: 100%; }
-.page-header h1 { margin-bottom: 24px; font-size: 24px; color: #333; }
-.cards-row { display: flex; flex-wrap: wrap; gap: 16px; margin-bottom: 24px; }
-.stat-card { flex: 1 1 180px; background: #fff; border-radius: 8px; padding: 16px; box-shadow: 0 2px 6px #0001; }
-.stat-title { font-size: 14px; color: #666; margin-bottom: 8px; }
-.stat-value { font-size: 28px; color: #222; }
-.charts-row { display: flex; flex-wrap: wrap; gap: 16px; }
-.chart-card { flex: 1 1 300px; background: #fff; border-radius: 8px; padding: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-.chart-title { font-size: 14px; color: #333; margin-bottom: 8px; }
+.statistics-page { background: #f9fafa; min-height: 100% }
+.page-header h1 { margin-bottom: 24px; font-size: 24px; color: #333 }
+.cards-row { display: flex; flex-wrap: wrap; gap: 16px; margin-bottom: 24px }
+.stat-card { flex: 1 1 180px; background: #fff; border-radius: 8px; padding: 16px; box-shadow: 0 2px 6px #0001 }
+.stat-title { font-size: 14px; color: #666; margin-bottom: 8px }
+.stat-value { font-size: 28px; color: #222 }
+.charts-row { display: flex; flex-wrap: wrap; gap: 16px }
+.chart-card { flex: 1 1 300px; background: #fff; border-radius: 8px; padding: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1) }
+.chart-title { font-size: 14px; color: #333; margin-bottom: 8px }
+
+.reviews-section h2 { margin-bottom: 16px; font-size: 20px; color: #333 }
+.reviews-list { list-style: none; padding: 0 }
+.review-item { border: 1px solid #e0e0e0 }
 </style>

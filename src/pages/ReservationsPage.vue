@@ -48,7 +48,7 @@ export default {
       columns: [
         { name: 'destination', label: 'Destination', field: 'destination' },
         { name: 'category', label: 'Catégorie', field: 'category' },
-        { name: 'number_of_people', label: 'Personnes', field: 'number_of_people' },
+        { name: 'number_of_chamber', label: 'Chambres', field: 'number_of_chamber' },
         { name: 'total_price', label: 'Prix total (€)', field: 'total_price', format: v => `${v} €` },
         { name: 'start_date', label: 'Début', field: 'start_date', format: v => v ? new Date(v).toLocaleDateString() : '—' },
         { name: 'end_date', label: 'Fin', field: 'end_date', format: v => v ? new Date(v).toLocaleDateString() : '—' },
